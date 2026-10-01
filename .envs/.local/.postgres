@@ -1,0 +1,7 @@
+# PostgreSQL
+# ------------------------------------------------------------------------------
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=mangementlogistics
+POSTGRES_USER=raaXBHadnVbBkkZRyIjZHVWpfXaiEQrO
+POSTGRES_PASSWORD=g3pcjD2ay37Z7dl3WGR4K9FDEI2E2osOcOP2iSZdV955mtJ6X0LpB6SjxezzZGjX
