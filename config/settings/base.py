@@ -93,7 +93,8 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "mangementlogistics.users",
-    # Your stuff: custom apps go here
+    "mangementlogistics.orders",
+    "mangementlogistics.common",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

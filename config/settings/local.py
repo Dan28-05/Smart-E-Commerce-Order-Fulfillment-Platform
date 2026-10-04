@@ -81,4 +81,4 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # Your stuff...
 # ------------------------------------------------------------------------------
 # drf-spectacular - Allow accessing API schema and Swagger docs locally without admin login
-SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"] = ["rest_framework.permissions.AllowAny"]
+

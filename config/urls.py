@@ -15,6 +15,8 @@ urlpatterns = [
     ),
     # Monitoring: Prometheus metrics endpoint (/metrics)
     path("", include("django_prometheus.urls")),
+    # Orders app
+    path("orders/", include("mangementlogistics.orders.urls", namespace="orders")),
     # Your stuff: custom urls includes go here
     # ...
     # Media files
