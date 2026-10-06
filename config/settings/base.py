@@ -89,12 +89,15 @@ THIRD_PARTY_APPS = [
     "crispy_bootstrap5",
     "django_celery_beat",
     "corsheaders",
+    "rest_framework",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
     "mangementlogistics.users",
     "mangementlogistics.orders",
     "mangementlogistics.common",
+    "mangementlogistics.authentication",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -296,6 +299,18 @@ CELERY_WORKER_SEND_TASK_EVENTS = True
 CELERY_TASK_SEND_SENT_EVENT = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-hijack-root-logger
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False
-# Your stuff...
-# ------------------------------------------------------------------------------
+# django-rest-framework
+# -------------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# drf-spectacular
+# -------------------------------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Management Logistics API",
+    "DESCRIPTION": "API documentation for Management Logistics platform",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
 

@@ -6,6 +6,9 @@ from django.urls import path
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
 
+from drf_spectacular.views import SpectacularAPIView
+from drf_spectacular.views import SpectacularSwaggerView
+
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
     path(
@@ -17,8 +20,14 @@ urlpatterns = [
     path("", include("django_prometheus.urls")),
     # Orders app
     path("orders/", include("mangementlogistics.orders.urls", namespace="orders")),
-    # Your stuff: custom urls includes go here
-    # ...
+    # API endpoints & Schema
+    path("api/schema/", SpectacularAPIView.as_view(), name="api-schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="api-schema"),
+        name="api-docs",
+    ),
+    path("api/users/", include("mangementlogistics.users.api.urls")),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]
