@@ -39,3 +39,12 @@ class UserUpdateInputSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=UserRole.choices, required=False)
     phone_number = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
+
+class UserChangePasswordInputSerializer(serializers.Serializer):
+    """
+    Serializer for validating password change payload.
+    """
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=6)
+

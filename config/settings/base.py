@@ -4,6 +4,8 @@ import os
 import ssl
 from pathlib import Path
 
+from datetime import timedelta
+
 import environ
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
@@ -53,9 +55,9 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": env.str("POSTGRES_DB"),
-            "USER": env.str("POSTGRES_USER"),
-            "PASSWORD": env.str("POSTGRES_PASSWORD"),
+            "NAME": env.str("POSTGRES_DB", default="mangementlogistics"),
+            "USER": env.str("POSTGRES_USER", default="mangementlogistics"),
+            "PASSWORD": env.str("POSTGRES_PASSWORD", default=""),
             "HOST": env.str("POSTGRES_HOST", default="postgres"),
             "PORT": env.str("POSTGRES_PORT", default="5432"),
         },
@@ -91,6 +93,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "rest_framework",
     "drf_spectacular",
+    "rest_framework_simplejwt",
 ]
 
 LOCAL_APPS = [
@@ -303,6 +306,10 @@ CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 # -------------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ),
 }
 
 # drf-spectacular
@@ -312,5 +319,21 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API documentation for Management Logistics platform",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+}
+
+# simple-jwt
+# -------------------------------------------------------------------------------
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": env("DJANGO_SECRET_KEY", default="django-insecure-secret-key-for-local-development"),
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
 }
 

@@ -18,6 +18,8 @@ urlpatterns = [
     ),
     # Monitoring: Prometheus metrics endpoint (/metrics)
     path("", include("django_prometheus.urls")),
+    # Users web app
+    path("users/", include("mangementlogistics.users.urls", namespace="users")),
     # Orders app
     path("orders/", include("mangementlogistics.orders.urls", namespace="orders")),
     # API endpoints & Schema
@@ -27,6 +29,7 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="api-schema"),
         name="api-docs",
     ),
+    path("api/auth/", include("mangementlogistics.authentication.api.urls")),
     path("api/users/", include("mangementlogistics.users.api.urls")),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),

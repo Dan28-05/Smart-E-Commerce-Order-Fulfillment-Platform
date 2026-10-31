@@ -26,6 +26,7 @@ dependencies = [
   "django-prometheus>=2.5.0",
   "django-redis==7.0.0",
   "djangorestframework==3.18.1",
+  "djangorestframework-simplejwt>=5.5.0",
   "drf-spectacular==0.30.0",
   "gunicorn==26.2.0",
   "hiredis==3.4.1",
