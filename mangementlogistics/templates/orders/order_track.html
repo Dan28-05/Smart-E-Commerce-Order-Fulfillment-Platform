@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Tra cứu hành trình đơn hàng - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-lg-8">
+    <div class="text-center mb-4">
+      <h2 class="fw-bold">Tra cứu hành trình đơn hàng</h2>
+      <p class="text-muted">Nhập mã vận đơn (Ví dụ: ORD-20261101-XXXXXX) để kiểm tra trạng thái bưu kiện</p>
+    </div>
+
+    <!-- Ô tìm kiếm -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body p-4">
+        <form method="get" class="row g-2">
+          <div class="col-sm-9">
+            <input type="text"
+                   name="tracking"
+                   class="form-control form-control-lg"
+                   placeholder="Nhập mã vận đơn..."
+                   value="{{ tracking_number }}"
+                   required>
+          </div>
+          <div class="col-sm-3 d-grid">
+            <button type="submit" class="btn btn-primary btn-lg fw-semibold">Tra cứu</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if not_found %}
+      <div class="alert alert-warning text-center py-4" role="alert">
+        <h5 class="fw-bold mb-1">Không tìm thấy mã vận đơn!</h5>
+        <p class="mb-0">Mã <strong>{{ tracking_number }}</strong> không tồn tại trong hệ thống. Vui lòng kiểm tra lại.</p>
+      </div>
+    {% elif order %}
+      <!-- Kết quả tra cứu -->
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="fw-bold mb-0">Mã vận đơn: <span class="text-primary">{{ order.tracking_number }}</span></h5>
+            <small class="text-muted">Tạo lúc: {{ order.created_at|date:"d/m/Y H:i" }}</small>
+          </div>
+          <div>
+            {% if order.status == "PENDING" %}
+              <span class="badge bg-warning text-dark fs-6">Chờ tiếp nhận</span>
+            {% elif order.status == "CONFIRMED" %}
+              <span class="badge bg-info text-dark fs-6">Đã xác nhận</span>
+            {% elif order.status == "PICKED_UP" %}
+              <span class="badge bg-primary fs-6">Đã lấy hàng</span>
+            {% elif order.status == "IN_TRANSIT" %}
+              <span class="badge bg-primary fs-6">Đang vận chuyển</span>
+            {% elif order.status == "DELIVERED" %}
+              <span class="badge bg-success fs-6">Giao thành công</span>
+            {% elif order.status == "CANCELLED" %}
+              <span class="badge bg-danger fs-6">Đã hủy</span>
+            {% else %}
+              <span class="badge bg-secondary fs-6">{{ order.get_status_display }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-body p-4">
+          <div class="row g-4 mb-4">
+            <div class="col-md-6 border-end">
+              <h6 class="text-muted small fw-bold">NƠI GỬI:</h6>
+              <div class="fw-semibold">{{ order.sender_name }}</div>
+              <div class="small text-muted">{{ order.sender_address }}</div>
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted small fw-bold">NƠI NHẬN:</h6>
+              <div class="fw-semibold">{{ order.receiver_name }}</div>
+              <div class="small text-muted">{{ order.receiver_address }}</div>
+            </div>
+          </div>
+
+          <div class="row g-3 bg-light p-3 rounded">
+            <div class="col-sm-4">
+              <small class="text-muted d-block">Trọng lượng</small>
+              <span class="fw-bold">{{ order.weight }} kg</span>
+            </div>
+            <div class="col-sm-4">
+              <small class="text-muted d-block">Tiền thu hộ (COD)</small>
+              <span class="fw-bold text-danger">{{ order.cod_amount|floatformat:0 }} VNĐ</span>
+            </div>
+            <div class="col-sm-4">
+              <small class="text-muted d-block">Thời điểm hoàn thành</small>
+              <span class="fw-bold">{{ order.delivered_at|date:"d/m/Y H:i"|default:"Đang cập nhật" }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock content %}
+

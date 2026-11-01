@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Hủy đơn hàng #{{ order.tracking_number }} - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-lg-6 col-md-8">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white py-3 border-bottom text-center">
+        <h2 class="h4 fw-bold text-danger mb-1">Xác nhận hủy đơn hàng</h2>
+        <small class="text-muted">Mã vận đơn: <strong>{{ order.tracking_number }}</strong></small>
+      </div>
+      <div class="card-body p-4">
+        <div class="alert alert-warning mb-4">
+          <strong>Lưu ý:</strong> Sau khi hủy, đơn hàng sẽ không thể khôi phục lại trạng thái giao nhận ban đầu.
+        </div>
+
+        <div class="mb-3">
+          <div class="row">
+            <div class="col-6">
+              <small class="text-muted">Người nhận:</small>
+              <div class="fw-bold">{{ order.receiver_name }}</div>
+            </div>
+            <div class="col-6">
+              <small class="text-muted">Tổng tiền COD:</small>
+              <div class="fw-bold text-danger">{{ order.cod_amount|floatformat:0 }} VNĐ</div>
+            </div>
+          </div>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="mb-4">
+            <label class="form-label fw-semibold">{{ form.reason.label }}</label>
+            {{ form.reason }}
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-outline-secondary">Quay lại</a>
+            <button type="submit" class="btn btn-danger px-4">Xác nhận hủy đơn</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+

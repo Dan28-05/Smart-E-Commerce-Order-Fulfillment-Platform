@@ -31,6 +31,7 @@ urlpatterns = [
     ),
     path("api/auth/", include("mangementlogistics.authentication.api.urls")),
     path("api/users/", include("mangementlogistics.users.api.urls")),
+    path("api/orders/", include("mangementlogistics.orders.api.urls")),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]

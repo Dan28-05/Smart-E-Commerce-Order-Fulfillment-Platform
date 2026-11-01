@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Đơn hàng #{{ order.tracking_number }} - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-2">
+        <h2 class="h3 fw-bold mb-0">Đơn hàng #{{ order.tracking_number }}</h2>
+        {% if order.status == "PENDING" %}
+          <span class="badge bg-warning text-dark fs-6">Chờ tiếp nhận</span>
+        {% elif order.status == "CONFIRMED" %}
+          <span class="badge bg-info text-dark fs-6">Đã xác nhận</span>
+        {% elif order.status == "PICKED_UP" %}
+          <span class="badge bg-primary fs-6">Đã lấy hàng</span>
+        {% elif order.status == "IN_TRANSIT" %}
+          <span class="badge bg-primary fs-6">Đang giao hàng</span>
+        {% elif order.status == "DELIVERED" %}
+          <span class="badge bg-success fs-6">Giao thành công</span>
+        {% elif order.status == "CANCELLED" %}
+          <span class="badge bg-danger fs-6">Đã hủy</span>
+        {% else %}
+          <span class="badge bg-secondary fs-6">{{ order.get_status_display }}</span>
+        {% endif %}
+      </div>
+      <small class="text-muted">Ngày tạo: {{ order.created_at|date:"d/m/Y H:i" }} | Cập nhật lần cuối: {{ order.updated_at|date:"d/m/Y H:i" }}</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary">Quay lại</a>
+      {% if can_cancel %}
+        <a href="{% url 'orders:order-update' order.id %}" class="btn btn-outline-primary">Chỉnh sửa</a>
+        <a href="{% url 'orders:order-cancel' order.id %}" class="btn btn-outline-danger">Hủy đơn hàng</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- CỘT TRÁI: THÔNG TIN CHI TIẾT -->
+    <div class="col-lg-8">
+      <!-- NGƯỜI GỬI & NGƯỜI NHẬN -->
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="fw-bold mb-0">Địa chỉ giao nhận</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 border-end">
+              <span class="badge bg-light text-primary border mb-2">NGƯỜI GỬI</span>
+              <h5 class="fw-bold mb-1">{{ order.sender_name }}</h5>
+              <div class="text-muted mb-1">{{ order.sender_phone }}</div>
+              <div class="small">{{ order.sender_address }}</div>
+            </div>
+            <div class="col-md-6">
+              <span class="badge bg-light text-success border mb-2">NGƯỜI NHẬN</span>
+              <h5 class="fw-bold mb-1">{{ order.receiver_name }}</h5>
+              <div class="text-muted mb-1">{{ order.receiver_phone }}</div>
+              <div class="small">{{ order.receiver_address }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BƯU KIỆN & GHI CHÚ -->
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="fw-bold mb-0">Thông tin bưu phẩm</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="text-muted small">Trọng lượng hàng hóa</div>
+              <div class="fw-bold fs-5">{{ order.weight }} kg</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="text-muted small">Mô tả sản phẩm</div>
+              <div>{{ order.item_description|default:"Chưa có mô tả" }}</div>
+            </div>
+            {% if order.notes %}
+              <div class="col-12">
+                <div class="text-muted small">Ghi chú giao hàng</div>
+                <div class="alert alert-light border mb-0">{{ order.notes|linebreaksbr }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: TÀI CHÍNH & ĐIỀU PHỐI -->
+    <div class="col-lg-4">
+      <!-- CƯỚC PHÍ & THANH TOÁN -->
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="fw-bold mb-0">Cước phí & Thanh toán</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted">Tiền thu hộ (COD):</span>
+            <span class="fw-semibold">{{ order.cod_amount|floatformat:0 }} VNĐ</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted">Phí vận chuyển:</span>
+            <span class="fw-semibold">{{ order.shipping_fee|floatformat:0 }} VNĐ</span>
+          </div>
+          <hr>
+          <div class="d-flex justify-content-between mb-3 fs-5">
+            <span class="fw-bold">Tổng tiền thu:</span>
+            <span class="fw-bold text-danger">{{ order.total_amount|floatformat:0 }} VNĐ</span>
+          </div>
+          <div class="mb-2">
+            <small class="text-muted">Phương thức thanh toán:</small>
+            <div class="fw-semibold">{{ order.get_payment_method_display }}</div>
+          </div>
+          <div>
+            <small class="text-muted">Trạng thái thanh toán:</small>
+            <div>
+              {% if order.payment_status == "PAID" %}
+                <span class="badge bg-success">Đã thanh toán</span>
+              {% else %}
+                <span class="badge bg-secondary">Chưa thanh toán</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TÀI XẾ & ĐIỀU PHỐI (ADMIN / DRIVER) -->
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="fw-bold mb-0">Tài xế phụ trách</h5>
+        </div>
+        <div class="card-body">
+          {% if order.driver %}
+            <div class="d-flex align-items-center mb-3">
+              <div class="rounded-circle bg-primary text-white p-2 me-3" style="width: 40px; height: 40px; text-align: center;">
+                🚗
+              </div>
+              <div>
+                <div class="fw-bold">{{ order.driver.name|default:order.driver.email }}</div>
+                <div class="small text-muted">{{ order.driver.phone_number|default:order.driver.email }}</div>
+              </div>
+            </div>
+          {% else %}
+            <div class="text-muted mb-3">Chưa có tài xế nhận đơn này.</div>
+          {% endif %}
+
+          {% if status_form %}
+            <hr>
+            <h6 class="fw-bold mb-2">Cập nhật điều phối:</h6>
+            <form method="post" action="{% url 'orders:order-status-update' order.id %}">
+              {% csrf_token %}
+              <div class="mb-2">
+                <label class="form-label small fw-semibold">{{ status_form.status.label }}</label>
+                {{ status_form.status }}
+              </div>
+              {% if is_admin %}
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold">{{ status_form.driver.label }}</label>
+                  {{ status_form.driver }}
+                </div>
+              {% endif %}
+              <button type="submit" class="btn btn-sm btn-primary w-100">Lưu trạng thái</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+

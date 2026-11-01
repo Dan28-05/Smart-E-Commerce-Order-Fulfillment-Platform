@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action_title }} - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+          <div>
+            <h2 class="h4 fw-bold mb-0">{{ action_title }}</h2>
+            <small class="text-muted">Điền thông tin vận chuyển để hệ thống điều phối lấy hàng và giao nhận</small>
+          </div>
+          <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary btn-sm">Quay lại danh sách</a>
+        </div>
+        <div class="card-body p-4">
+          <form method="post" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger" role="alert">
+                {% for error in form.non_field_errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <!-- THÔNG TIN NGƯỜI GỬI & NGƯỜI NHẬN -->
+            <div class="row g-4 mb-4">
+              <!-- Cột người gửi -->
+              <div class="col-md-6 border-end">
+                <h5 class="fw-bold text-primary mb-3">1. Thông tin người gửi</h5>
+                <div class="mb-3">
+                  <label for="{{ form.sender_name.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.sender_name.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.sender_name }}
+                  {% if form.sender_name.errors %}
+                    <div class="text-danger small mt-1">{{ form.sender_name.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="mb-3">
+                  <label for="{{ form.sender_phone.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.sender_phone.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.sender_phone }}
+                  {% if form.sender_phone.errors %}
+                    <div class="text-danger small mt-1">{{ form.sender_phone.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="mb-3">
+                  <label for="{{ form.sender_address.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.sender_address.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.sender_address }}
+                  {% if form.sender_address.errors %}
+                    <div class="text-danger small mt-1">{{ form.sender_address.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Cột người nhận -->
+              <div class="col-md-6">
+                <h5 class="fw-bold text-success mb-3">2. Thông tin người nhận</h5>
+                <div class="mb-3">
+                  <label for="{{ form.receiver_name.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.receiver_name.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.receiver_name }}
+                  {% if form.receiver_name.errors %}
+                    <div class="text-danger small mt-1">{{ form.receiver_name.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="mb-3">
+                  <label for="{{ form.receiver_phone.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.receiver_phone.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.receiver_phone }}
+                  {% if form.receiver_phone.errors %}
+                    <div class="text-danger small mt-1">{{ form.receiver_phone.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+
+                <div class="mb-3">
+                  <label for="{{ form.receiver_address.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.receiver_address.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.receiver_address }}
+                  {% if form.receiver_address.errors %}
+                    <div class="text-danger small mt-1">{{ form.receiver_address.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- THÔNG TIN HÀNG HÓA & CƯỚC PHÍ -->
+            <h5 class="fw-bold text-dark mb-3">3. Thông tin bưu kiện & cước phí</h5>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="{{ form.weight.id_for_label }}" class="form-label fw-semibold">
+                  {{ form.weight.label }} <span class="text-danger">*</span>
+                </label>
+                {{ form.weight }}
+                {% if form.weight.errors %}
+                  <div class="text-danger small mt-1">{{ form.weight.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-4">
+                <label for="{{ form.cod_amount.id_for_label }}" class="form-label fw-semibold">
+                  {{ form.cod_amount.label }}
+                </label>
+                {{ form.cod_amount }}
+                {% if form.cod_amount.errors %}
+                  <div class="text-danger small mt-1">{{ form.cod_amount.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-4">
+                <label for="{{ form.shipping_fee.id_for_label }}" class="form-label fw-semibold">
+                  {{ form.shipping_fee.label }}
+                </label>
+                {{ form.shipping_fee }}
+                {% if form.shipping_fee.errors %}
+                  <div class="text-danger small mt-1">{{ form.shipping_fee.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-4">
+                <label for="{{ form.payment_method.id_for_label }}" class="form-label fw-semibold">
+                  {{ form.payment_method.label }}
+                </label>
+                {{ form.payment_method }}
+                {% if form.payment_method.errors %}
+                  <div class="text-danger small mt-1">{{ form.payment_method.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-8">
+                <label for="{{ form.item_description.id_for_label }}" class="form-label fw-semibold">
+                  {{ form.item_description.label }}
+                </label>
+                {{ form.item_description }}
+                {% if form.item_description.errors %}
+                  <div class="text-danger small mt-1">{{ form.item_description.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-12">
+                <label for="{{ form.notes.id_for_label }}" class="form-label fw-semibold">
+                  {{ form.notes.label }}
+                </label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                  <div class="text-danger small mt-1">{{ form.notes.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+              <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary">Hủy bỏ</a>
+              <button type="submit" class="btn btn-primary px-4">Lưu đơn hàng</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+

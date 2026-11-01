@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý Đơn hàng - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="h3 fw-bold mb-1">Quản lý Đơn hàng</h2>
+      <p class="text-muted mb-0">Theo dõi, điều phối và xử lý toàn bộ quy trình vận chuyển</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'orders:order-track' %}" class="btn btn-outline-secondary">
+        Tra cứu vận đơn
+      </a>
+      <a href="{% url 'orders:order-create' %}" class="btn btn-primary">
+        + Tạo đơn hàng mới
+      </a>
+    </div>
+  </div>
+
+  <!-- Bộ lọc & Tìm kiếm -->
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-body p-3">
+      <form method="get" class="row g-2 align-items-center">
+        <div class="col-md-6 col-lg-5">
+          <input type="text"
+                 name="search"
+                 class="form-control"
+                 placeholder="Tìm theo mã vận đơn, người gửi, người nhận, số ĐT..."
+                 value="{{ search_query }}">
+        </div>
+        <div class="col-md-4 col-lg-4">
+          <select name="status" class="form-select">
+            <option value="">-- Tất cả trạng thái --</option>
+            <option value="PENDING" {% if selected_status == "PENDING" %}selected{% endif %}>Chờ tiếp nhận</option>
+            <option value="CONFIRMED" {% if selected_status == "CONFIRMED" %}selected{% endif %}>Đã xác nhận</option>
+            <option value="PICKED_UP" {% if selected_status == "PICKED_UP" %}selected{% endif %}>Đã lấy hàng</option>
+            <option value="IN_TRANSIT" {% if selected_status == "IN_TRANSIT" %}selected{% endif %}>Đang vận chuyển</option>
+            <option value="DELIVERED" {% if selected_status == "DELIVERED" %}selected{% endif %}>Giao thành công</option>
+            <option value="CANCELLED" {% if selected_status == "CANCELLED" %}selected{% endif %}>Đã hủy</option>
+            <option value="RETURNED" {% if selected_status == "RETURNED" %}selected{% endif %}>Trả hàng</option>
+          </select>
+        </div>
+        <div class="col-md-2 col-lg-3 d-flex gap-2">
+          <button type="submit" class="btn btn-secondary px-3">Lọc</button>
+          {% if search_query or selected_status %}
+            <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary">Đặt lại</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Danh sách đơn hàng -->
+  <div class="card shadow-sm border-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Mã vận đơn</th>
+            <th>Khách hàng</th>
+            <th>Người nhận</th>
+            <th>Trọng lượng</th>
+            <th>Thu hộ COD</th>
+            <th>Trạng thái</th>
+            <th>Tài xế</th>
+            <th>Ngày tạo</th>
+            <th class="text-end">Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+            <tr>
+              <td>
+                <a href="{% url 'orders:order-detail' order.id %}" class="fw-bold text-decoration-none">
+                  {{ order.tracking_number }}
+                </a>
+              </td>
+              <td>
+                <div>{{ order.customer.name|default:order.customer.email }}</div>
+                <small class="text-muted">{{ order.sender_phone }}</small>
+              </td>
+              <td>
+                <div class="fw-semibold">{{ order.receiver_name }}</div>
+                <small class="text-muted">{{ order.receiver_phone }} - {{ order.receiver_address|truncatechars:35 }}</small>
+              </td>
+              <td>{{ order.weight }} kg</td>
+              <td>
+                <span class="fw-semibold text-danger">{{ order.cod_amount|floatformat:0 }} VNĐ</span>
+              </td>
+              <td>
+                {% if order.status == "PENDING" %}
+                  <span class="badge bg-warning text-dark">Chờ tiếp nhận</span>
+                {% elif order.status == "CONFIRMED" %}
+                  <span class="badge bg-info text-dark">Đã xác nhận</span>
+                {% elif order.status == "PICKED_UP" %}
+                  <span class="badge bg-primary">Đã lấy hàng</span>
+                {% elif order.status == "IN_TRANSIT" %}
+                  <span class="badge bg-primary">Đang giao</span>
+                {% elif order.status == "DELIVERED" %}
+                  <span class="badge bg-success">Giao thành công</span>
+                {% elif order.status == "CANCELLED" %}
+                  <span class="badge bg-danger">Đã hủy</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if order.driver %}
+                  <span class="badge bg-light text-dark border">{{ order.driver.name|default:order.driver.email }}</span>
+                {% else %}
+                  <span class="text-muted small"><em>Chưa gán</em></span>
+                {% endif %}
+              </td>
+              <td>
+                <small class="text-muted">{{ order.created_at|date:"d/m/Y H:i" }}</small>
+              </td>
+              <td class="text-end">
+                <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-sm btn-outline-primary me-1">Chi tiết</a>
+                {% if order.can_be_cancelled %}
+                  <a href="{% url 'orders:order-update' order.id %}" class="btn btn-sm btn-outline-secondary me-1">Sửa</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="9" class="text-center py-5 text-muted">
+                <p class="mb-2">Không tìm thấy đơn hàng nào phù hợp.</p>
+                <a href="{% url 'orders:order-create' %}" class="btn btn-sm btn-primary">Tạo đơn đầu tiên ngay</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
