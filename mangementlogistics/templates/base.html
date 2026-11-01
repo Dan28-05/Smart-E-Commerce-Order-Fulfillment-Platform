@@ -84,6 +84,18 @@
               <a class="nav-link" href="{% url 'about' %}">About</a>
             </li>
           </ul>
+          <ul class="navbar-nav ms-auto">
+            {% if request.user.is_authenticated %}
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'users:password-change' %}">Đổi mật khẩu</a>
+              </li>
+            {% else %}
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'users:password-reset-request' %}">Quên mật khẩu?</a>
+              </li>
+            {% endif %}
+            </li>
+          </ul>
         </div>
       </div>
     </nav>

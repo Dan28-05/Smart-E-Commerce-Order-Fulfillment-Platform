@@ -137,6 +137,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": "mangementlogistics.authentication.validators.ComplexityPasswordValidator"},
 ]
 
 # MIDDLEWARE
@@ -235,6 +236,10 @@ EMAIL_BACKEND = env(
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-timeout
 EMAIL_TIMEOUT = 5
+DEFAULT_FROM_EMAIL = env(
+    "DJANGO_DEFAULT_FROM_EMAIL",
+    default="Management Logistics <noreply@mangementlogistics.com>",
+)
 
 # LOGGING
 # ------------------------------------------------------------------------------

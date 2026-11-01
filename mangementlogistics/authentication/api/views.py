@@ -6,9 +6,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from mangementlogistics.authentication.api.serializers import (
+    ChangePasswordInputSerializer,
     LoginInputSerializer,
     LoginOutputSerializer,
     LogoutInputSerializer,
+    PasswordResetConfirmInputSerializer,
+    PasswordResetRequestInputSerializer,
+    PasswordResetValidateTokenInputSerializer,
     TokenRefreshInputSerializer,
     TokenRefreshOutputSerializer,
     TokenVerifyInputSerializer,
@@ -20,10 +24,15 @@ from mangementlogistics.authentication.exceptions import (
 )
 from mangementlogistics.authentication.services import (
     auth_blacklist_token,
+    auth_change_password,
     auth_login_with_credentials,
+    auth_password_reset_confirm,
+    auth_password_reset_request,
+    auth_password_reset_validate_token,
     auth_refresh_access_token,
     auth_verify_token,
 )
+from mangementlogistics.users.exceptions import InvalidPasswordError
 
 
 class LoginApi(APIView):
@@ -146,3 +155,127 @@ class LogoutApi(APIView):
                 pass
 
         return Response({"message": "Đăng xuất thành công."}, status=status.HTTP_200_OK)
+
+
+class ChangePasswordApi(APIView):
+    """
+    Change password for the currently authenticated user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Đổi mật khẩu người dùng hiện tại",
+        request=ChangePasswordInputSerializer,
+        responses={
+            200: {"type": "object", "properties": {"message": {"type": "string"}}},
+            400: {"type": "object", "properties": {"error": {"type": "string"}}},
+        },
+    )
+    def post(self, request):
+        serializer = ChangePasswordInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            auth_change_password(
+                user=request.user,
+                old_password=serializer.validated_data["old_password"],
+                new_password=serializer.validated_data["new_password"],
+                new_password_confirm=serializer.validated_data["new_password_confirm"],
+            )
+        except InvalidPasswordError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Đổi mật khẩu thành công!"}, status=status.HTTP_200_OK)
+
+
+class PasswordResetRequestApi(APIView):
+    """
+    Request password reset email.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Yêu cầu đặt lại mật khẩu qua email",
+        request=PasswordResetRequestInputSerializer,
+        responses={
+            200: {"type": "object", "properties": {"message": {"type": "string"}}},
+            400: {"type": "object", "properties": {"error": {"type": "string"}}},
+        },
+    )
+    def post(self, request):
+        serializer = PasswordResetRequestInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        base_url = request.build_absolute_uri("/")
+
+        _, message = auth_password_reset_request(email=email, base_url=base_url)
+        return Response({"message": message}, status=status.HTTP_200_OK)
+
+
+class PasswordResetValidateTokenApi(APIView):
+    """
+    Validate if password reset token and uid are valid.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Kiểm tra token đặt lại mật khẩu có hợp lệ hay không",
+        request=PasswordResetValidateTokenInputSerializer,
+        responses={
+            200: {"type": "object", "properties": {"valid": {"type": "boolean"}}},
+            400: {"type": "object", "properties": {"error": {"type": "string"}}},
+        },
+    )
+    def post(self, request):
+        serializer = PasswordResetValidateTokenInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        uidb64 = serializer.validated_data["uidb64"]
+        token = serializer.validated_data["token"]
+
+        try:
+            auth_password_reset_validate_token(uidb64=uidb64, token=token)
+        except InvalidTokenError as exc:
+            return Response({"error": str(exc), "valid": False}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"valid": True}, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmApi(APIView):
+    """
+    Confirm password reset with new password.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Xác nhận đặt lại mật khẩu mới",
+        request=PasswordResetConfirmInputSerializer,
+        responses={
+            200: {"type": "object", "properties": {"message": {"type": "string"}}},
+            400: {"type": "object", "properties": {"error": {"type": "string"}}},
+        },
+    )
+    def post(self, request):
+        serializer = PasswordResetConfirmInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        uidb64 = serializer.validated_data["uidb64"]
+        token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+        new_password_confirm = serializer.validated_data["new_password_confirm"]
+
+        try:
+            auth_password_reset_confirm(
+                uidb64=uidb64,
+                token=token,
+                new_password=new_password,
+                new_password_confirm=new_password_confirm,
+            )
+        except (InvalidTokenError, InvalidPasswordError) as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {"message": "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới."},
+            status=status.HTTP_200_OK,
+        )

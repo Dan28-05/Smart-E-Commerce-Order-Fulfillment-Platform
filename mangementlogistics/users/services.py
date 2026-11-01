@@ -1,3 +1,5 @@
+# mangementlogistics/users/services.py
+from mangementlogistics.authentication.validators import validate_password_complexity
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.exceptions import DuplicateEmailError, InvalidPasswordError
 from mangementlogistics.users.models import User
@@ -15,9 +17,12 @@ def user_create(
     """
     Creates a new user with hashed password.
     Raises DuplicateEmailError if the email already exists.
+    Raises InvalidPasswordError if password does not meet complexity constraints.
     """
     if User.objects.filter(email__iexact=email).exists():
         raise DuplicateEmailError(f"Email '{email}' đã được sử dụng.")
+
+    validate_password_complexity(password)
 
     user = User.objects.create_user(
         username=email,
@@ -36,10 +41,8 @@ def user_update(*, user: User, **data) -> User:
     Updates user personal details.
     Password changes are excluded and must use user_change_password instead.
     """
-    # Không cho đổi mật khẩu qua hàm update thông thường
     data.pop("password", None)
 
-    # Nếu có cập nhật email, kiểm tra xem email mới có bị trùng với người khác không
     new_email = data.get("email")
     if new_email and new_email.lower() != user.email.lower():
         if User.objects.filter(email__iexact=new_email).exclude(id=user.id).exists():
@@ -54,16 +57,28 @@ def user_update(*, user: User, **data) -> User:
     return user
 
 
-def user_change_password(*, user: User, old_password: str, new_password: str) -> User:
+def user_change_password(
+    *,
+    user: User,
+    old_password: str,
+    new_password: str,
+    new_password_confirm: str | None = None,
+) -> User:
     """
     Changes user password after verifying the old password.
+    Validates confirmation and strong complexity constraints.
     Raises InvalidPasswordError if verification fails.
     """
     if not user.check_password(old_password):
         raise InvalidPasswordError("Mật khẩu cũ không chính xác!")
 
+    if new_password_confirm is not None and new_password != new_password_confirm:
+        raise InvalidPasswordError("Mật khẩu xác nhận không khớp!")
+
     if old_password == new_password:
         raise InvalidPasswordError("Mật khẩu mới không được trùng với mật khẩu cũ!")
+
+    validate_password_complexity(new_password)
 
     user.set_password(new_password)
     user.save()
