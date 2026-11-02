@@ -1,6 +1,6 @@
 # mangementlogistics/users/views.py
 from django.contrib import messages
-from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
@@ -15,8 +15,10 @@ from mangementlogistics.users.forms import (
     PasswordResetConfirmForm,
     PasswordResetRequestForm,
     UserCreateForm,
+    UserLoginForm,
     UserPasswordChangeForm,
 )
+from mangementlogistics.users.models import User
 from mangementlogistics.users.selectors import user_list
 
 
@@ -152,3 +154,53 @@ def password_reset_confirm_view(request, uidb64: str, token: str):
         "users/password_reset_confirm.html",
         {"form": form, "user": user},
     )
+
+
+def user_login_view(request):
+    """
+    Renders and processes user login for the web UI.
+    """
+    if request.user.is_authenticated:
+        return redirect("home")
+
+    if request.method == "POST":
+        form = UserLoginForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data["email"].strip().lower()
+            password = form.cleaned_data["password"]
+            remember_me = form.cleaned_data.get("remember_me", False)
+
+            # Check by username=email first
+            user = authenticate(request, username=email, password=password)
+            if user is None:
+                # Fallback to query user by email in case username is different
+                found_user = User.objects.filter(email__iexact=email).first()
+                if found_user and found_user.check_password(password):
+                    user = found_user
+
+            if user is not None:
+                if not user.is_active:
+                    messages.error(request, "Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động.")
+                else:
+                    login(request, user)
+                    if not remember_me:
+                        request.session.set_expiry(0)
+                    messages.success(request, f"Chào mừng trở lại, {user.name or user.email}!")
+                    next_url = request.GET.get("next") or "home"
+                    return redirect(next_url)
+            else:
+                messages.error(request, "Email hoặc mật khẩu không chính xác.")
+    else:
+        form = UserLoginForm()
+
+    return render(request, "users/login.html", {"form": form})
+
+
+def user_logout_view(request):
+    """
+    Logs the user out of the web session.
+    """
+    logout(request)
+    messages.info(request, "Bạn đã đăng xuất thành công.")
+    return redirect("home")
+

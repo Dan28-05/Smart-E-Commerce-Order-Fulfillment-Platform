@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng nhập - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-md-6 col-lg-5">
+    <div class="card shadow border-0 rounded-3">
+      <div class="card-body p-4 p-md-5">
+        <div class="text-center mb-4">
+          <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+            <i class="bi bi-box-seam-fill fs-3"></i>
+          </div>
+          <h2 class="h3 fw-bold mb-1">Đăng nhập</h2>
+          <p class="text-muted small">Chào mừng bạn quay lại hệ thống MangementLogistics</p>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+              {% for error in form.non_field_errors %}
+                <div><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}</div>
+              {% endfor %}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold">
+              <i class="bi bi-envelope me-1"></i>{{ form.email.label }}
+            </label>
+            {{ form.email }}
+            {% if form.email.errors %}
+              <div class="text-danger small mt-1">{{ form.email.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <label for="{{ form.password.id_for_label }}" class="form-label fw-semibold mb-0">
+                <i class="bi bi-lock me-1"></i>{{ form.password.label }}
+              </label>
+              <a href="{% url 'users:password-reset-request' %}" class="small text-decoration-none text-primary">
+                Quên mật khẩu?
+              </a>
+            </div>
+            <div class="mt-2">
+              {{ form.password }}
+            </div>
+            {% if form.password.errors %}
+              <div class="text-danger small mt-1">{{ form.password.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-4 form-check">
+            {{ form.remember_me }}
+            <label class="form-check-label small text-muted" for="{{ form.remember_me.id_for_label }}">
+              {{ form.remember_me.label }}
+            </label>
+          </div>
+
+          <div class="d-grid mb-3">
+            <button type="submit" class="btn btn-primary btn-lg fw-semibold shadow-sm">
+              <i class="bi bi-box-arrow-in-right me-2"></i>Đăng nhập
+            </button>
+          </div>
+        </form>
+
+        <div class="text-center mt-4 pt-3 border-top">
+          <p class="text-muted small mb-0">
+            Chưa có tài khoản?
+            <a href="{% url 'users:user-create' %}" class="fw-semibold text-primary text-decoration-none">
+              Đăng ký tài khoản mới
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+

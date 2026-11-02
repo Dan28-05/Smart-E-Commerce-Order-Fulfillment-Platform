@@ -7,12 +7,16 @@ from mangementlogistics.users.views import (
     password_reset_request_view,
     user_create_view,
     user_list_view,
+    user_login_view,
+    user_logout_view,
 )
 
 app_name = "users"
 
 urlpatterns = [
     path("", user_list_view, name="user-list"),
+    path("login/", user_login_view, name="login"),
+    path("logout/", user_logout_view, name="logout"),
     path("create/", user_create_view, name="user-create"),
     path("password/change/", password_change_view, name="password-change"),
     path("password/reset/", password_reset_request_view, name="password-reset-request"),

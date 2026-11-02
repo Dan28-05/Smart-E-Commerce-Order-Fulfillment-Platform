@@ -185,3 +185,27 @@ class PasswordResetConfirmForm(forms.Form):
                 self.add_error("new_password", str(exc))
 
         return cleaned_data
+
+
+class UserLoginForm(forms.Form):
+    """
+    Form for user authentication in the web UI.
+    """
+    email = forms.EmailField(
+        label="Địa chỉ Email",
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "name@example.com", "autofocus": True}
+        ),
+    )
+    password = forms.CharField(
+        label="Mật khẩu",
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "Nhập mật khẩu"}
+        ),
+    )
+    remember_me = forms.BooleanField(
+        label="Ghi nhớ đăng nhập",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+

@@ -1,4 +1,3 @@
-
 {% load static i18n %}<!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
 <html lang="{{ LANGUAGE_CODE }}">
@@ -7,138 +6,225 @@
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
     <title>
       {% block title %}
-      MangementLogistics
-    {% endblock title %}
-  </title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description"
-        content="Behold My Awesome Project!" />
-  <meta name="author"
-        content="Daniel Roy Greenfeld" />
-  <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
-  {% block css %}
-    <!-- Latest compiled and minified Bootstrap CSS -->
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css"
-          integrity="sha512-SbiR/eusphKoMVVXysTKG/7VseWii+Y3FdHrt0EpKgpToZeemhqHeZeLWLhJutz/2ut2Vw1uQEj2MbRF+TVBUA=="
-          crossorigin="anonymous"
-          referrerpolicy="no-referrer" />
-<!-- Your stuff: Third-party CSS libraries go here -->
-<!-- This file stores project-specific CSS -->
+      MangementLogistics - Nền tảng điều phối vận tải & TMĐT
+      {% endblock title %}
+    </title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Nền tảng quản lý logistics, hoàn tất đơn hàng và giao vận chặng cuối thông minh cho thương mại điện tử." />
+    <meta name="author" content="MangementLogistics Team" />
+    <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
 
-  
-  <link href="{% static 'css/project.css' %}" rel="stylesheet" />
+    {% block css %}
+      <!-- Bootstrap 5 CSS -->
+      <link rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css"
+            integrity="sha512-SbiR/eusphKoMVVXysTKG/7VseWii+Y3FdHrt0EpKgpToZeemhqHeZeLWLhJutz/2ut2Vw1uQEj2MbRF+TVBUA=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer" />
+      <!-- Bootstrap Icons -->
+      <link rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+      <!-- Project CSS -->
+      <link href="{% static 'css/project.css' %}" rel="stylesheet" />
+    {% endblock css %}
 
+    {% block javascript %}
+      <!-- Bootstrap Bundle JS (includes Popper) -->
+      <script defer
+              src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"
+              integrity="sha512-i9cEfJwUwViEPFKdC1enz4ZRGBj8YQo6QByFTF92YXHi7waCqyexvRDh557TmW37G2HacK5fdxNX/naKhj8Nnw=="
+              crossorigin="anonymous"
+              referrerpolicy="no-referrer"></script>
+      <!-- Project JS -->
+      <script defer src="{% static 'js/project.js' %}"></script>
+    {% endblock javascript %}
+  </head>
 
-{% endblock css %}
-<!-- Le javascript
-    ================================================== -->
-{# Placed at the top of the document so pages load faster with defer #}
-{% block javascript %}
+  <body class="d-flex flex-column min-vh-100 bg-light {% block bodyclass %}{% endblock bodyclass %}">
+    {% block body %}
+    <!-- Navbar Header -->
+    <header class="sticky-top shadow-sm">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark py-2">
+        <div class="container">
+          <a class="navbar-brand fw-bold d-flex align-items-center text-white" href="{% url 'home' %}">
+            <span class="rounded-3 bg-primary p-1 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 32px; height: 32px;">
+              <i class="bi bi-box-seam-fill fs-6"></i>
+            </span>
+            <span>Mangement<span class="text-primary">Logistics</span></span>
+          </a>
 
+          <button class="navbar-toggler border-0"
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#navbarSupportedContent"
+                  aria-controls="navbarSupportedContent"
+                  aria-expanded="false"
+                  aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
 
-<!-- Bootstrap JS -->
-<script defer
-        src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.min.js"
-        integrity="sha512-1/RvZTcCDEUjY/CypiMz+iqqtaoQfAITmNSJY17Myp4Ms5mdxPS5UV7iOfdZoxcGhzFbOm6sntTKJppjvuhg4g=="
-        crossorigin="anonymous"
-        referrerpolicy="no-referrer"></script>
-<!-- Your stuff: Third-party javascript libraries go here -->
-
-
-<!-- place project specific Javascript in this file -->
-
-  
-  <script defer src="{% static 'js/project.js' %}"></script>
-
-
-{% endblock javascript %}
-</head>
-<body class="{% block bodyclass %}{% endblock bodyclass %}">
-  {% block body %}
-  <div class="mb-1">
-    <nav class="navbar navbar-expand-md navbar-light bg-light">
-      <div class="container-fluid">
-        <button class="navbar-toggler navbar-toggler-right"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#navbarSupportedContent"
-                aria-controls="navbarSupportedContent"
-                aria-expanded="false"
-                aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <a class="navbar-brand" href="{% url 'home' %}">MangementLogistics</a>
-        <div class="collapse navbar-collapse" id="navbarSupportedContent">
-          <ul class="navbar-nav me-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'home' %}">Home</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'users:user-list' %}">Quản lý Users</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'orders:order-list' %}">Quản lý Đơn hàng</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'orders:order-track' %}">Tra cứu vận đơn</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'api-docs' %}">API Docs (Swagger)</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'about' %}">About</a>
-            </li>
-          </ul>
-          <ul class="navbar-nav ms-auto">
-            {% if request.user.is_authenticated %}
+          <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
               <li class="nav-item">
-                <a class="nav-link" href="{% url 'users:password-change' %}">Đổi mật khẩu</a>
+                <a class="nav-link text-white-50 {% if request.resolver_match.url_name == 'home' %}active text-white fw-semibold{% endif %}" href="{% url 'home' %}">
+                  <i class="bi bi-house-door me-1"></i>Trang chủ
+                </a>
               </li>
-            {% else %}
               <li class="nav-item">
-                <a class="nav-link" href="{% url 'users:password-reset-request' %}">Quên mật khẩu?</a>
+                <a class="nav-link text-white-50 {% if 'orders' in request.resolver_match.namespace and request.resolver_match.url_name != 'order-track' %}active text-white fw-semibold{% endif %}" href="{% url 'orders:order-list' %}">
+                  <i class="bi bi-box-seam me-1"></i>Quản lý Đơn hàng
+                </a>
               </li>
-            {% endif %}
-            </li>
-          </ul>
+              <li class="nav-item">
+                <a class="nav-link text-white-50 {% if request.resolver_match.url_name == 'order-track' %}active text-white fw-semibold{% endif %}" href="{% url 'orders:order-track' %}">
+                  <i class="bi bi-geo-alt me-1"></i>Tra cứu vận đơn
+                </a>
+              </li>
+              {% if request.user.is_authenticated and request.user.role == "ADMIN" or request.user.is_superuser %}
+              <li class="nav-item">
+                <a class="nav-link text-white-50 {% if 'users' in request.resolver_match.namespace and 'list' in request.resolver_match.url_name %}active text-white fw-semibold{% endif %}" href="{% url 'users:user-list' %}">
+                  <i class="bi bi-people me-1"></i>Quản lý Users
+                </a>
+              </li>
+              {% endif %}
+              <li class="nav-item">
+                <a class="nav-link text-white-50" href="{% url 'api-docs' %}" target="_blank">
+                  <i class="bi bi-code-slash me-1"></i>API Swagger
+                </a>
+              </li>
+            </ul>
+
+            <ul class="navbar-nav ms-auto align-items-lg-center">
+              {% if request.user.is_authenticated %}
+                <li class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle text-white d-flex align-items-center" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="rounded-circle bg-secondary text-white me-2 d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                      <i class="bi bi-person-fill"></i>
+                    </span>
+                    <span class="me-2 fw-semibold">{{ request.user.name|default:request.user.email }}</span>
+                    {% if request.user.role == "ADMIN" or request.user.is_superuser %}
+                      <span class="badge bg-danger">Admin</span>
+                    {% elif request.user.role == "DRIVER" %}
+                      <span class="badge bg-warning text-dark">Tài xế</span>
+                    {% else %}
+                      <span class="badge bg-primary">Khách hàng</span>
+                    {% endif %}
+                  </a>
+                  <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="navbarUserDropdown">
+                    <li class="dropdown-header text-muted small">Tài khoản: {{ request.user.email }}</li>
+                    <li><a class="dropdown-item" href="{% url 'orders:order-list' %}"><i class="bi bi-box-seam me-2 text-primary"></i>Đơn hàng của tôi</a></li>
+                    <li><a class="dropdown-item" href="{% url 'orders:order-create' %}"><i class="bi bi-plus-circle me-2 text-success"></i>Tạo đơn mới</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{% url 'users:password-change' %}"><i class="bi bi-key me-2 text-warning"></i>Đổi mật khẩu</a></li>
+                    <li>
+                      <a class="dropdown-item text-danger" href="{% url 'users:logout' %}">
+                        <i class="bi bi-box-arrow-right me-2"></i>Đăng xuất
+                      </a>
+                    </li>
+                  </ul>
+                </li>
+              {% else %}
+                <li class="nav-item me-2">
+                  <a class="nav-link text-white-50" href="{% url 'users:user-create' %}">
+                    <i class="bi bi-person-plus me-1"></i>Đăng ký
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a class="btn btn-primary btn-sm px-3 fw-semibold rounded-pill" href="{% url 'users:login' %}">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>Đăng nhập
+                  </a>
+                </li>
+              {% endif %}
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Global Messages Notification -->
+    <div class="container mt-3">
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-dismissible shadow-sm fade show {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}" role="alert">
+            <i class="bi bi-info-circle-fill me-2"></i>{{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow-1">
+      {% block main %}
+        <div class="container py-4">
+          {% block content %}
+          {% endblock content %}
+        </div>
+      {% endblock main %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white-50 py-5 mt-auto border-top border-secondary">
+      <div class="container">
+        <div class="row g-4">
+          <div class="col-lg-4 col-md-6">
+            <h5 class="text-white fw-bold mb-3 d-flex align-items-center">
+              <i class="bi bi-box-seam-fill text-primary me-2"></i>MangementLogistics
+            </h5>
+            <p class="small text-white-50 mb-3">
+              Nền tảng quản lý logistics và hoàn tất đơn hàng TMĐT thông minh. Tối ưu hành trình giao nhận, tự động hóa quy trình phân bổ bưu kiện và quản lý dòng tiền COD an toàn, minh bạch.
+            </p>
+            <div class="d-flex gap-3">
+              <span class="badge bg-secondary bg-opacity-25 text-white p-2"><i class="bi bi-shield-check text-success me-1"></i>Bảo mật SSL 256-bit</span>
+              <span class="badge bg-secondary bg-opacity-25 text-white p-2"><i class="bi bi-lightning-charge text-warning me-1"></i>Thời gian thực</span>
+            </div>
+          </div>
+
+          <div class="col-lg-2 col-md-6 col-6">
+            <h6 class="text-white fw-semibold mb-3">Dịch vụ</h6>
+            <ul class="list-unstyled small mb-0">
+              <li class="mb-2"><a href="{% url 'orders:order-track' %}" class="text-white-50 text-decoration-none hover-white">Tra cứu bưu kiện</a></li>
+              <li class="mb-2"><a href="{% url 'orders:order-create' %}" class="text-white-50 text-decoration-none hover-white">Tạo đơn gửi hàng</a></li>
+              <li class="mb-2"><a href="{% url 'orders:order-list' %}" class="text-white-50 text-decoration-none hover-white">Quản lý bưu kiện</a></li>
+              <li class="mb-2"><a href="{% url 'about' %}" class="text-white-50 text-decoration-none hover-white">Về chúng tôi</a></li>
+            </ul>
+          </div>
+
+          <div class="col-lg-2 col-md-6 col-6">
+            <h6 class="text-white fw-semibold mb-3">Dành cho Nhà phát triển</h6>
+            <ul class="list-unstyled small mb-0">
+              <li class="mb-2"><a href="{% url 'api-docs' %}" target="_blank" class="text-white-50 text-decoration-none hover-white">OpenAPI / Swagger</a></li>
+              <li class="mb-2"><a href="{% url 'api-schema' %}" target="_blank" class="text-white-50 text-decoration-none hover-white">Schema JSON/YAML</a></li>
+              <li class="mb-2"><a href="/api/auth/login/" class="text-white-50 text-decoration-none hover-white">JWT Authentication</a></li>
+              <li class="mb-2"><a href="/metrics" class="text-white-50 text-decoration-none hover-white">Prometheus Metrics</a></li>
+            </ul>
+          </div>
+
+          <div class="col-lg-4 col-md-6">
+            <h6 class="text-white fw-semibold mb-3">Liên hệ hỗ trợ</h6>
+            <ul class="list-unstyled small text-white-50 mb-3">
+              <li class="mb-2"><i class="bi bi-telephone text-primary me-2"></i>Tổng đài hỗ trợ: <strong>1900 8888</strong> (24/7)</li>
+              <li class="mb-2"><i class="bi bi-envelope text-primary me-2"></i>Email: <strong>support@mangementlogistics.vn</strong></li>
+              <li class="mb-2"><i class="bi bi-geo-alt text-primary me-2"></i>Trụ sở: Tòa nhà Logistics Center, Hà Nội & TP. Hồ Chí Minh</li>
+            </ul>
+          </div>
+        </div>
+
+        <hr class="border-secondary my-4">
+
+        <div class="row align-items-center">
+          <div class="col-md-6 text-center text-md-start small text-white-50">
+            &copy; 2026 <strong>MangementLogistics</strong>. All rights reserved. Powered by Django & Clean Architecture.
+          </div>
+          <div class="col-md-6 text-center text-md-end small text-white-50 mt-2 mt-md-0">
+            <span class="text-success me-1">●</span> Hệ thống đang vận hành ổn định
+          </div>
         </div>
       </div>
-    </nav>
-  </div>
-  <div class="container">
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-          {{ message }}
-          <button type="button"
-                  class="btn-close"
-                  data-bs-dismiss="alert"
-                  aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    {% endif %}
-    {% block main %}
-      {% block content %}
-        <p>Use this document as a way to quick start any new project.</p>
-      {% endblock content %}
-    {% endblock main %}
+    </footer>
+    {% endblock body %}
 
-  </div>
-  {% endblock body %}
-  <!-- /container -->
-  {% block modal %}
-  {% endblock modal %}
-  {% block inline_javascript %}
-    {% comment %}
-    Script tags with only code, no src (defer by default). To run
-    with a "defer" so that you run inline code:
-    <script>
-      window.addEventListener('DOMContentLoaded', () => {
-        /* Run whatever you want */
-      });
-    </script>
-    {% endcomment %}
-  {% endblock inline_javascript %}
-</body>
+    {% block modal %}{% endblock modal %}
+    {% block inline_javascript %}{% endblock inline_javascript %}
+  </body>
 </html>

@@ -1,3 +1,570 @@
 {% extends "base.html" %}
 
+{% block title %}
+  {% if is_dashboard %}
+    Bảng điều khiển - MangementLogistics
+  {% else %}
+    MangementLogistics - Nền tảng điều phối vận tải & Hoàn tất đơn hàng TMĐT
+  {% endif %}
+{% endblock title %}
 
+{% block main %}
+{% if is_dashboard %}
+<!-- ========================================== -->
+<!-- BẢNG ĐIỀU KHIỂN DÀNH CHO NGƯỜI DÙNG ĐÃ ĐĂNG NHẬP -->
+<!-- ========================================== -->
+<div class="container py-4">
+  <!-- Welcome Banner -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white overflow-hidden">
+    <div class="card-body p-4 p-md-5 bg-gradient" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
+      <div class="row align-items-center text-white">
+        <div class="col-lg-8">
+          <div class="d-inline-flex align-items-center gap-2 mb-2">
+            <span class="badge bg-white text-primary px-3 py-1 rounded-pill fw-semibold">
+              <i class="bi bi-person-badge me-1"></i>
+              {% if request.user.role == "ADMIN" or request.user.is_superuser %}
+                Quản trị viên hệ thống
+              {% elif request.user.role == "DRIVER" %}
+                Tài xế giao vận
+              {% else %}
+                Khách hàng / Chủ Shop
+              {% endif %}
+            </span>
+            <span class="badge bg-primary-subtle text-white bg-opacity-25 px-2 py-1 rounded-pill small">
+              <i class="bi bi-clock me-1"></i>Thời gian thực
+            </span>
+          </div>
+          <h1 class="h2 fw-bold mb-2">
+            Xin chào, {{ request.user.name|default:request.user.email }}! 👋
+          </h1>
+          <p class="text-white-50 mb-0 fs-6">
+            Chào mừng bạn quay trở lại. Hãy quản lý bưu kiện, theo dõi lộ trình và kiểm soát doanh thu vận chuyển dễ dàng tại đây.
+          </p>
+        </div>
+        <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+          <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+            <a href="{% url 'orders:order-create' %}" class="btn btn-warning text-dark fw-bold px-4 py-2 shadow-sm rounded-pill">
+              <i class="bi bi-plus-circle-fill me-1"></i>Tạo đơn mới
+            </a>
+            <a href="{% url 'orders:order-list' %}" class="btn btn-outline-light px-3 py-2 rounded-pill">
+              <i class="bi bi-card-list me-1"></i>Tất cả đơn hàng
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational KPI Stats -->
+  <div class="row g-3 mb-4">
+    <!-- Tổng đơn hàng -->
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Tổng đơn hàng</span>
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2 d-inline-flex">
+              <i class="bi bi-box-seam-fill fs-5"></i>
+            </div>
+          </div>
+          <h2 class="h3 fw-bold mb-1 text-dark">{{ total_orders }}</h2>
+          <span class="small text-muted"><i class="bi bi-arrow-up-right text-success me-1"></i>Hồ sơ bưu kiện</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Đơn chờ xử lý -->
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Chờ xử lý</span>
+            <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-2 d-inline-flex">
+              <i class="bi bi-hourglass-split fs-5"></i>
+            </div>
+          </div>
+          <h2 class="h3 fw-bold mb-1 text-warning">{{ pending_orders }}</h2>
+          <span class="small text-muted">Chờ lấy & điều phối</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Đang giao hàng -->
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Đang vận chuyển</span>
+            <div class="rounded-3 bg-info bg-opacity-10 text-info p-2 d-inline-flex">
+              <i class="bi bi-truck fs-5"></i>
+            </div>
+          </div>
+          <h2 class="h3 fw-bold mb-1 text-info">{{ delivering_orders }}</h2>
+          <span class="small text-muted">Đang trên đường giao</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Giao thành công -->
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Giao thành công</span>
+            <div class="rounded-3 bg-success bg-opacity-10 text-success p-2 d-inline-flex">
+              <i class="bi bi-check-circle-fill fs-5"></i>
+            </div>
+          </div>
+          <h2 class="h3 fw-bold mb-1 text-success">{{ delivered_orders }}</h2>
+          <span class="small text-muted">Hoàn tất phát bưu phẩm</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <!-- Cột trái: Tra cứu nhanh & Đơn hàng gần đây -->
+    <div class="col-lg-8">
+      <!-- Quick Tracking Widget on Dashboard -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center mb-3">
+            <div class="rounded-circle bg-primary bg-opacity-10 text-primary p-2 me-2">
+              <i class="bi bi-search"></i>
+            </div>
+            <h5 class="fw-bold mb-0">Tra cứu nhanh hành trình bưu kiện</h5>
+          </div>
+          <form action="{% url 'orders:order-track' %}" method="get" class="row g-2">
+            <div class="col-md-9">
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-upc-scan"></i></span>
+                <input type="text"
+                       name="tracking"
+                       class="form-control border-start-0 bg-light"
+                       placeholder="Nhập mã vận đơn (VD: ORD-20261102-123456)..."
+                       required />
+              </div>
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                <i class="bi bi-geo-alt-fill me-1"></i>Tra cứu
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Recent Orders Table -->
+      <div class="card border-0 shadow-sm rounded-4 bg-white">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="fw-bold mb-0">Đơn hàng gần đây</h5>
+            <small class="text-muted">Danh sách bưu kiện mới nhất được ghi nhận</small>
+          </div>
+          <a href="{% url 'orders:order-list' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+            Xem tất cả <i class="bi bi-arrow-right ms-1"></i>
+          </a>
+        </div>
+        <div class="card-body p-0">
+          {% if recent_orders %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small text-muted">
+                  <tr>
+                    <th class="ps-4">MÃ VẬN ĐƠN</th>
+                    <th>NGƯỜI NHẬN</th>
+                    <th>TIỀN THU HỘ (COD)</th>
+                    <th>TRẠNG THÁI</th>
+                    <th class="text-end pe-4">THAO TÁC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for order in recent_orders %}
+                    <tr>
+                      <td class="ps-4">
+                        <a href="{% url 'orders:order-detail' order.id %}" class="fw-bold text-decoration-none text-primary">
+                          #{{ order.tracking_number }}
+                        </a>
+                        <div class="text-muted small">{{ order.created_at|date:"d/m/Y H:i" }}</div>
+                      </td>
+                      <td>
+                        <div class="fw-semibold">{{ order.receiver_name }}</div>
+                        <div class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ order.receiver_phone }}</div>
+                      </td>
+                      <td>
+                        <span class="fw-bold text-dark">{{ order.cod_amount|floatformat:0 }} đ</span>
+                        <div class="small text-muted">Cước: {{ order.shipping_fee|floatformat:0 }} đ</div>
+                      </td>
+                      <td>
+                        {% if order.status == "PENDING" %}
+                          <span class="badge bg-warning-subtle text-warning border border-warning px-2 py-1">Chờ xử lý</span>
+                        {% elif order.status == "CONFIRMED" %}
+                          <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1">Đã xác nhận</span>
+                        {% elif order.status == "PICKED_UP" %}
+                          <span class="badge bg-info-subtle text-info border border-info px-2 py-1">Đã lấy hàng</span>
+                        {% elif order.status == "IN_TRANSIT" %}
+                          <span class="badge bg-info text-white px-2 py-1">Đang giao hàng</span>
+                        {% elif order.status == "DELIVERED" %}
+                          <span class="badge bg-success-subtle text-success border border-success px-2 py-1">Giao thành công</span>
+                        {% elif order.status == "CANCELLED" %}
+                          <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-1">Đã hủy</span>
+                        {% elif order.status == "RETURNED" %}
+                          <span class="badge bg-secondary px-2 py-1">Hoàn trả</span>
+                        {% else %}
+                          <span class="badge bg-secondary">{{ order.status }}</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end pe-4">
+                        <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-sm btn-light border" title="Xem chi tiết">
+                          <i class="bi bi-eye"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center py-5">
+              <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+              <h6 class="text-muted">Chưa có đơn hàng nào được ghi nhận</h6>
+              <p class="small text-muted mb-3">Tạo đơn hàng đầu tiên của bạn để trải nghiệm hệ thống vận chuyển nhanh chóng.</p>
+              <a href="{% url 'orders:order-create' %}" class="btn btn-primary btn-sm px-3 rounded-pill">
+                <i class="bi bi-plus-circle me-1"></i>Tạo đơn hàng ngay
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Cột phải: Phím tắt & Thông tin hỗ trợ -->
+    <div class="col-lg-4">
+      <!-- Thao tác nhanh -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-3">Thao tác nhanh</h5>
+          <div class="d-grid gap-2">
+            <a href="{% url 'orders:order-create' %}" class="btn btn-outline-primary text-start d-flex align-items-center justify-content-between p-3 rounded-3">
+              <span><i class="bi bi-box-seam me-2 text-primary fs-5 align-middle"></i>Tạo đơn bưu kiện mới</span>
+              <i class="bi bi-chevron-right text-muted"></i>
+            </a>
+            <a href="{% url 'orders:order-track' %}" class="btn btn-outline-secondary text-start d-flex align-items-center justify-content-between p-3 rounded-3">
+              <span><i class="bi bi-geo-alt me-2 text-info fs-5 align-middle"></i>Tra cứu mã vận đơn</span>
+              <i class="bi bi-chevron-right text-muted"></i>
+            </a>
+            <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary text-start d-flex align-items-center justify-content-between p-3 rounded-3">
+              <span><i class="bi bi-funnel me-2 text-warning fs-5 align-middle"></i>Lọc danh sách bưu phẩm</span>
+              <i class="bi bi-chevron-right text-muted"></i>
+            </a>
+            <a href="{% url 'users:password-change' %}" class="btn btn-outline-secondary text-start d-flex align-items-center justify-content-between p-3 rounded-3">
+              <span><i class="bi bi-shield-lock me-2 text-success fs-5 align-middle"></i>Đổi mật khẩu tài khoản</span>
+              <i class="bi bi-chevron-right text-muted"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hướng dẫn & Lưu ý -->
+      <div class="card border-0 shadow-sm rounded-4 bg-white">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3 d-flex align-items-center text-dark">
+            <i class="bi bi-lightbulb-fill text-warning me-2 fs-5"></i>Quy định giao nhận hàng hóa
+          </h6>
+          <ul class="list-unstyled small text-muted mb-0">
+            <li class="mb-2 d-flex">
+              <i class="bi bi-check2 text-success me-2 flex-shrink-0"></i>
+              <span>Đóng gói hàng hóa cẩn thận, chèn mút xốp đối với hàng dễ vỡ.</span>
+            </li>
+            <li class="mb-2 d-flex">
+              <i class="bi bi-check2 text-success me-2 flex-shrink-0"></i>
+              <span>Ghi rõ mã vận đơn <code>ORD-...</code> lên bề mặt kiện hàng để shipper dễ quét.</span>
+            </li>
+            <li class="mb-2 d-flex">
+              <i class="bi bi-check2 text-success me-2 flex-shrink-0"></i>
+              <span>Tiền thu hộ COD sẽ được đối soát tự động vào thứ 2, 4, 6 hàng tuần.</span>
+            </li>
+            <li class="d-flex">
+              <i class="bi bi-check2 text-success me-2 flex-shrink-0"></i>
+              <span>Cần hỗ trợ gấp? Gọi hotline <strong>1900 8888</strong> để được giải quyết tức thì.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- ========================================== -->
+<!-- LANDING PAGE DÀNH CHO KHÁCH / CHƯA ĐĂNG NHẬP -->
+<!-- ========================================== -->
+
+<!-- Hero Section -->
+<section class="py-5 text-white position-relative overflow-hidden" style="background: radial-gradient(circle at top right, #1e3a8a 0%, #0f172a 100%);">
+  <div class="container py-lg-5">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-7">
+        <div class="d-inline-flex align-items-center gap-2 bg-primary bg-opacity-25 border border-primary px-3 py-1 rounded-pill mb-3">
+          <span class="badge bg-primary">Mới</span>
+          <span class="small fw-semibold text-white">Nền tảng Fulfillment Logistics 4.0</span>
+        </div>
+        <h1 class="display-4 fw-bold lh-sm mb-3">
+          Giải Pháp Quản Lý Logistics & Vận Chuyển Hàng Hóa Thông Minh
+        </h1>
+        <p class="lead text-white-50 mb-4">
+          Tối ưu hóa hành trình giao nhận, giám sát bưu kiện thời gian thực, đối soát COD tự động và tích hợp đa kênh thương mại điện tử chuyên nghiệp.
+        </p>
+
+        <!-- Quick Tracking Box Directly in Hero -->
+        <div class="card border-0 shadow-lg rounded-4 p-2 bg-white text-dark mb-4">
+          <form action="{% url 'orders:order-track' %}" method="get" class="row g-2 align-items-center p-2">
+            <div class="col-md-8">
+              <div class="input-group input-group-lg">
+                <span class="input-group-text bg-transparent border-0 text-primary">
+                  <i class="bi bi-search fs-5"></i>
+                </span>
+                <input type="text"
+                       name="tracking"
+                       class="form-control border-0 shadow-none fs-6"
+                       placeholder="Nhập mã vận đơn (VD: ORD-20261102-123456)..."
+                       required />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold rounded-3">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Tra cứu ngay
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Action CTAs -->
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+          <a href="{% url 'users:user-create' %}" class="btn btn-warning btn-lg text-dark fw-bold px-4 rounded-pill shadow">
+            <i class="bi bi-rocket-takeoff-fill me-2"></i>Đăng ký tài khoản
+          </a>
+          <a href="{% url 'users:login' %}" class="btn btn-outline-light btn-lg px-4 rounded-pill">
+            <i class="bi bi-box-arrow-in-right me-2"></i>Đăng nhập hệ thống
+          </a>
+          <a href="{% url 'api-docs' %}" target="_blank" class="text-white-50 text-decoration-none small ms-lg-2">
+            <i class="bi bi-code-slash me-1"></i>API Documentation →
+          </a>
+        </div>
+      </div>
+
+      <!-- Hero Visual Card -->
+      <div class="col-lg-5 d-none d-lg-block">
+        <div class="card border-0 shadow-lg rounded-4 bg-dark bg-opacity-50 text-white p-4 border border-secondary">
+          <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-secondary">
+            <div class="d-flex align-items-center gap-2">
+              <span class="rounded-circle bg-success p-2 d-inline-block"></span>
+              <span class="fw-semibold">Hệ thống phân phối bưu kiện</span>
+            </div>
+            <span class="badge bg-primary">Online</span>
+          </div>
+
+          <!-- Mock Tracking Timeline -->
+          <div class="mb-4">
+            <div class="d-flex gap-3 mb-3">
+              <div class="text-primary fs-4"><i class="bi bi-check-circle-fill"></i></div>
+              <div>
+                <div class="fw-bold">Tiếp nhận đơn hàng</div>
+                <small class="text-white-50">Kho tiếp nhận phân loại trung tâm</small>
+              </div>
+            </div>
+            <div class="d-flex gap-3 mb-3">
+              <div class="text-info fs-4"><i class="bi bi-truck"></i></div>
+              <div>
+                <div class="fw-bold">Đang vận chuyển liên tỉnh</div>
+                <small class="text-white-50">Tài xế nhận hàng và đang di chuyển</small>
+              </div>
+            </div>
+            <div class="d-flex gap-3">
+              <div class="text-success fs-4"><i class="bi bi-geo-alt-fill"></i></div>
+              <div>
+                <div class="fw-bold">Giao phát thành công</div>
+                <small class="text-white-50">Khách hàng nhận & ký đối soát COD</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-3 bg-secondary bg-opacity-25 p-3 text-center">
+            <span class="small text-white-50 d-block mb-1">Mã vận đơn mẫu</span>
+            <code class="text-warning fs-5 fw-bold">ORD-20261102-888888</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Ribbon -->
+<section class="py-4 bg-white shadow-sm border-bottom">
+  <div class="container">
+    <div class="row g-4 text-center">
+      <div class="col-6 col-md-3">
+        <h3 class="display-6 fw-bold text-primary mb-0">99.8%</h3>
+        <p class="text-muted small mb-0">Giao đúng hẹn & an toàn</p>
+      </div>
+      <div class="col-6 col-md-3">
+        <h3 class="display-6 fw-bold text-success mb-0">63+</h3>
+        <p class="text-muted small mb-0">Tỉnh thành phủ sóng toàn quốc</p>
+      </div>
+      <div class="col-6 col-md-3">
+        <h3 class="display-6 fw-bold text-warning mb-0">&lt; 2 Giờ</h3>
+        <p class="text-muted small mb-0">Shipper lấy hàng nội thành</p>
+      </div>
+      <div class="col-6 col-md-3">
+        <h3 class="display-6 fw-bold text-info mb-0">24/7</h3>
+        <p class="text-muted small mb-0">Hỗ trợ vận hành & đối soát</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Core Features Section -->
+<section class="py-5 bg-light">
+  <div class="container py-4">
+    <div class="text-center max-w-700 mx-auto mb-5">
+      <span class="badge bg-primary-subtle text-primary border border-primary px-3 py-1 rounded-pill mb-2">Tính năng vượt trội</span>
+      <h2 class="fw-bold h1">Nền Tảng Vận Tải Thế Hệ Mới</h2>
+      <p class="text-muted">Được thiết kế toàn diện nhằm giải quyết mọi bài toán phức tạp của chuỗi cung ứng e-commerce.</p>
+    </div>
+
+    <div class="row g-4">
+      <!-- Feature 1 -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm rounded-4 bg-white p-3 hover-shadow transition">
+          <div class="card-body">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 d-inline-flex mb-3">
+              <i class="bi bi-geo-alt-fill fs-3"></i>
+            </div>
+            <h5 class="fw-bold mb-2">Định vị Real-Time</h5>
+            <p class="text-muted small mb-0">
+              Tra cứu từng chặng di chuyển của bưu kiện mọi lúc, mọi nơi mà không cần đăng nhập.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm rounded-4 bg-white p-3 hover-shadow transition">
+          <div class="card-body">
+            <div class="rounded-3 bg-success bg-opacity-10 text-success p-3 d-inline-flex mb-3">
+              <i class="bi bi-diagram-3-fill fs-3"></i>
+            </div>
+            <h5 class="fw-bold mb-2">Điều phối thông minh</h5>
+            <p class="text-muted small mb-0">
+              Tự động phân bổ tài xế phù hợp nhất theo tuyến đường và bán kính để tối ưu thời gian giao.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm rounded-4 bg-white p-3 hover-shadow transition">
+          <div class="card-body">
+            <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-3 d-inline-flex mb-3">
+              <i class="bi bi-cash-coin fs-3"></i>
+            </div>
+            <h5 class="fw-bold mb-2">Đối soát COD an toàn</h5>
+            <p class="text-muted small mb-0">
+              Quản lý dòng tiền thu hộ minh bạch, đối soát tự động chính xác từng đồng, không lo thất thoát.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm rounded-4 bg-white p-3 hover-shadow transition">
+          <div class="card-body">
+            <div class="rounded-3 bg-info bg-opacity-10 text-info p-3 d-inline-flex mb-3">
+              <i class="bi bi-cpu-fill fs-3"></i>
+            </div>
+            <h5 class="fw-bold mb-2">API Mở RESTful</h5>
+            <p class="text-muted small mb-0">
+              Chuẩn Swagger/OpenAPI hỗ trợ tích hợp tức thì với sàn TMĐT, website bán hàng và hệ thống ERP.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4-Step Shipping Process -->
+<section class="py-5 bg-white border-top border-bottom">
+  <div class="container py-4">
+    <div class="text-center mb-5">
+      <span class="badge bg-success-subtle text-success border border-success px-3 py-1 rounded-pill mb-2">Quy trình đơn giản</span>
+      <h2 class="fw-bold h1">Giao Nhận Nhanh Chóng Trong 4 Bước</h2>
+    </div>
+
+    <div class="row g-4 text-center">
+      <div class="col-md-3">
+        <div class="p-3">
+          <div class="rounded-circle bg-primary text-white fs-4 fw-bold mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+            1
+          </div>
+          <h5 class="fw-bold">Tạo đơn hàng</h5>
+          <p class="text-muted small">Nhập thông tin người gửi, người nhận, cân nặng và thu hộ COD chỉ mất 30 giây.</p>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="p-3">
+          <div class="rounded-circle bg-info text-white fs-4 fw-bold mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+            2
+          </div>
+          <h5 class="fw-bold">Shipper lấy hàng</h5>
+          <p class="text-muted small">Hệ thống điều phối tài xế gần nhất đến nhận hàng tận nơi theo yêu cầu của bạn.</p>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="p-3">
+          <div class="rounded-circle bg-warning text-white fs-4 fw-bold mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+            3
+          </div>
+          <h5 class="fw-bold">Vận chuyển & Giám sát</h5>
+          <p class="text-muted small">Bưu phẩm được luân chuyển an toàn, cập nhật hành trình liên tục theo thời gian thực.</p>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="p-3">
+          <div class="rounded-circle bg-success text-white fs-4 fw-bold mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+            4
+          </div>
+          <h5 class="fw-bold">Giao hàng & Đối soát</h5>
+          <p class="text-muted small">Khách kiểm tra nhận hàng, tài xế hoàn tất đơn và tiền COD về tài khoản chủ shop.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Call to action Banner -->
+<section class="py-5 text-white text-center" style="background: linear-gradient(135deg, #0d6efd 0%, #052c65 100%);">
+  <div class="container py-4">
+    <h2 class="display-6 fw-bold mb-3">Sẵn Sàng Nâng Tầm Chuỗi Cung Ứng Logistics Của Bạn?</h2>
+    <p class="lead text-white-50 mb-4 max-w-700 mx-auto">
+      Tham gia cùng hàng nghìn nhà bán hàng và doanh nghiệp đang tối ưu hóa chi phí vận chuyển mỗi ngày với MangementLogistics.
+    </p>
+    <div class="d-flex justify-content-center gap-3">
+      <a href="{% url 'users:user-create' %}" class="btn btn-warning btn-lg text-dark fw-bold px-4 rounded-pill shadow">
+        <i class="bi bi-person-plus-fill me-2"></i>Đăng ký tài khoản ngay
+      </a>
+      <a href="{% url 'orders:order-track' %}" class="btn btn-outline-light btn-lg px-4 rounded-pill">
+        <i class="bi bi-geo-alt me-2"></i>Tra cứu mã vận đơn
+      </a>
+    </div>
+  </div>
+</section>
+
+{% endif %}
+{% endblock main %}

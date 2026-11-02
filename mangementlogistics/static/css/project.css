@@ -1,4 +1,4 @@
-/* These styles are generated from project.scss. */
+/* Project Specific Styles */
 
 .alert-debug {
   color: black;
@@ -10,4 +10,21 @@
   color: #b94a48;
   background-color: #f2dede;
   border-color: #eed3d7;
+}
+
+.transition {
+  transition: all 0.25s ease-in-out;
+}
+
+.hover-shadow:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.08) !important;
+}
+
+.hover-white:hover {
+  color: #ffffff !important;
+}
+
+.max-w-700 {
+  max-width: 700px;
 }
