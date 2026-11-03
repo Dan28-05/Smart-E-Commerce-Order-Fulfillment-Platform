@@ -19,6 +19,18 @@ class OrderUserSummarySerializer(serializers.Serializer):
     phone_number = serializers.CharField(allow_null=True)
 
 
+class OrderTrackingHistorySerializer(serializers.Serializer):
+    """
+    Serializer for order timeline tracking event.
+    """
+    id = serializers.IntegerField()
+    status = serializers.CharField()
+    location = serializers.CharField()
+    note = serializers.CharField()
+    actor = OrderUserSummarySerializer(allow_null=True)
+    created_at = serializers.DateTimeField()
+
+
 class OrderOutputSerializer(serializers.Serializer):
     """
     Full output serializer for an order.
@@ -51,6 +63,8 @@ class OrderOutputSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
     delivered_at = serializers.DateTimeField(allow_null=True)
+    tracking_history = OrderTrackingHistorySerializer(many=True, required=False)
+
 
 
 class OrderCreateInputSerializer(serializers.Serializer):
@@ -107,6 +121,16 @@ class OrderStatusUpdateInputSerializer(serializers.Serializer):
     """
     status = serializers.ChoiceField(choices=OrderStatus.choices, required=True)
     driver_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+    location = serializers.CharField(required=False, default="", allow_blank=True)
+    note = serializers.CharField(required=False, default="", allow_blank=True)
+
+
+class OrderCheckpointInputSerializer(serializers.Serializer):
+    """
+    Payload for recording a custom transit checkpoint.
+    """
+    location = serializers.CharField(max_length=255)
+    note = serializers.CharField(max_length=500)
 
 
 class OrderCancelInputSerializer(serializers.Serializer):
@@ -114,3 +138,4 @@ class OrderCancelInputSerializer(serializers.Serializer):
     Payload for cancelling an order.
     """
     reason = serializers.CharField(required=False, default="", allow_blank=True)
+

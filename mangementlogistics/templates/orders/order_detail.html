@@ -27,6 +27,9 @@
       <small class="text-muted">Ngày tạo: {{ order.created_at|date:"d/m/Y H:i" }} | Cập nhật lần cuối: {{ order.updated_at|date:"d/m/Y H:i" }}</small>
     </div>
     <div class="d-flex gap-2">
+      <a href="{% url 'orders:order-print' order.id %}" target="_blank" class="btn btn-outline-dark">
+        <i class="bi bi-printer me-1"></i>In phiếu gửi
+      </a>
       <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary">Quay lại</a>
       {% if can_cancel %}
         <a href="{% url 'orders:order-update' order.id %}" class="btn btn-outline-primary">Chỉnh sửa</a>
@@ -85,6 +88,47 @@
           </div>
         </div>
       </div>
+
+      <!-- HÀNH TRÌNH BƯU KIỆN / TIMELINE -->
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <h5 class="fw-bold mb-0">
+            <i class="bi bi-clock-history text-primary me-2"></i>Lịch sử hành trình bưu kiện
+          </h5>
+          <span class="badge bg-light text-dark border">{{ tracking_history|length }} mốc sự kiện</span>
+        </div>
+        <div class="card-body p-4">
+          {% if tracking_history %}
+            <div class="timeline position-relative ps-2">
+              {% for event in tracking_history %}
+                <div class="timeline-item pb-4 position-relative ps-4 border-start border-2 {% if forloop.last %}border-white{% else %}border-primary{% endif %}">
+                  <span class="position-absolute top-0 start-0 translate-middle p-2 rounded-circle {% if event.status == 'DELIVERED' %}bg-success{% elif event.status == 'CANCELLED' %}bg-danger{% else %}bg-primary{% endif %} border border-2 border-white shadow-sm"></span>
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-bold text-dark fs-6">{{ event.get_status_display }}</span>
+                    <small class="text-muted"><i class="bi bi-clock me-1"></i>{{ event.created_at|date:"d/m/Y H:i" }}</small>
+                  </div>
+                  {% if event.location %}
+                    <div class="small text-primary mb-1 fw-semibold">
+                      <i class="bi bi-geo-alt-fill me-1"></i>{{ event.location }}
+                    </div>
+                  {% endif %}
+                  {% if event.note %}
+                    <div class="small text-secondary mb-1">{{ event.note }}</div>
+                  {% endif %}
+                  {% if event.actor %}
+                    <div class="text-muted small" style="font-size: 0.8rem;">
+                      <i class="bi bi-person me-1"></i>Ghi nhận: {{ event.actor.name|default:event.actor.email }}
+                    </div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-muted small py-2">Chưa có lịch sử hành trình được ghi nhận.</div>
+          {% endif %}
+        </div>
+      </div>
+
     </div>
 
     <!-- CỘT PHẢI: TÀI CHÍNH & ĐIỀU PHỐI -->
@@ -161,6 +205,25 @@
                 </div>
               {% endif %}
               <button type="submit" class="btn btn-sm btn-primary w-100">Lưu trạng thái</button>
+            </form>
+          {% endif %}
+
+          {% if checkpoint_form %}
+            <hr>
+            <h6 class="fw-bold mb-2">Thêm mốc Checkpoint hành trình:</h6>
+            <form method="post" action="{% url 'orders:order-checkpoint' order.id %}">
+              {% csrf_token %}
+              <div class="mb-2">
+                <label class="form-label small fw-semibold">{{ checkpoint_form.location.label }}</label>
+                {{ checkpoint_form.location }}
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">{{ checkpoint_form.note.label }}</label>
+                {{ checkpoint_form.note }}
+              </div>
+              <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                <i class="bi bi-geo-alt me-1"></i>Ghi nhận Checkpoint
+              </button>
             </form>
           {% endif %}
         </div>

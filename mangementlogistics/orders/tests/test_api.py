@@ -178,3 +178,30 @@ def test_order_public_tracking_api(api_client, customer_user):
     assert resp.status_code == status.HTTP_200_OK
     assert resp.data["tracking_number"] == order.tracking_number
     assert resp.data["receiver_name"] == "Receiver Track"
+    assert "tracking_history" in resp.data
+    assert len(resp.data["tracking_history"]) >= 1
+
+
+def test_order_checkpoint_api(api_client, customer_user, driver_user):
+    order = order_create(
+        customer=customer_user,
+        driver=driver_user,
+        sender_name="Sender CP",
+        sender_phone="0901",
+        sender_address="Addr 1",
+        receiver_name="Receiver CP",
+        receiver_phone="0902",
+        receiver_address="Addr 2",
+    )
+
+    api_client.force_authenticate(user=driver_user)
+    checkpoint_url = reverse("orders_api:order-checkpoint", kwargs={"order_id": order.id})
+    payload = {
+        "location": "Kho phan loai Da Nang",
+        "note": "Kien hang da den kho trung chuyen",
+    }
+    resp = api_client.post(checkpoint_url, data=payload, format="json")
+    assert resp.status_code == status.HTTP_201_CREATED
+    assert resp.data["location"] == "Kho phan loai Da Nang"
+    assert resp.data["note"] == "Kien hang da den kho trung chuyen"
+

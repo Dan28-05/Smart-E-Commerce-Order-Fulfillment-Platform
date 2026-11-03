@@ -74,7 +74,7 @@
             </div>
           </div>
 
-          <div class="row g-3 bg-light p-3 rounded">
+          <div class="row g-3 bg-light p-3 rounded mb-4">
             <div class="col-sm-4">
               <small class="text-muted d-block">Trọng lượng</small>
               <span class="fw-bold">{{ order.weight }} kg</span>
@@ -88,6 +88,34 @@
               <span class="fw-bold">{{ order.delivered_at|date:"d/m/Y H:i"|default:"Đang cập nhật" }}</span>
             </div>
           </div>
+
+          <!-- Timeline tiến trình bưu kiện -->
+          <h5 class="fw-bold mb-3 d-flex align-items-center">
+            <i class="bi bi-geo-alt-fill text-primary me-2"></i>Chi tiết tiến trình vận chuyển
+          </h5>
+          {% if tracking_history %}
+            <div class="timeline position-relative ps-2">
+              {% for event in tracking_history %}
+                <div class="timeline-item pb-4 position-relative ps-4 border-start border-2 {% if forloop.last %}border-white{% else %}border-primary{% endif %}">
+                  <span class="position-absolute top-0 start-0 translate-middle p-2 rounded-circle {% if event.status == 'DELIVERED' %}bg-success{% elif event.status == 'CANCELLED' %}bg-danger{% else %}bg-primary{% endif %} border border-2 border-white shadow-sm"></span>
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-bold text-dark fs-6">{{ event.get_status_display }}</span>
+                    <small class="text-muted"><i class="bi bi-clock me-1"></i>{{ event.created_at|date:"d/m/Y H:i" }}</small>
+                  </div>
+                  {% if event.location %}
+                    <div class="small text-primary mb-1 fw-semibold">
+                      <i class="bi bi-geo-alt me-1"></i>{{ event.location }}
+                    </div>
+                  {% endif %}
+                  {% if event.note %}
+                    <div class="small text-muted">{{ event.note }}</div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-muted small">Đang chuẩn bị hàng hóa và sắp xếp bưu tá lấy hàng.</div>
+          {% endif %}
         </div>
       </div>
     {% endif %}

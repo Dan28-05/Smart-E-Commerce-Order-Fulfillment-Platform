@@ -1,7 +1,7 @@
 # mangementlogistics/orders/selectors.py
 from django.db.models import Q, QuerySet
 
-from mangementlogistics.orders.models import Order
+from mangementlogistics.orders.models import Order, OrderTrackingHistory
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
 
@@ -70,3 +70,11 @@ def order_get_by_tracking_number(*, tracking_number: str) -> Order | None:
     return Order.objects.select_related("customer", "driver").filter(
         tracking_number__iexact=tracking_number.strip()
     ).first()
+
+
+def order_get_tracking_history(*, order: Order) -> QuerySet[OrderTrackingHistory]:
+    """
+    Returns chronological tracking milestones for the given order.
+    """
+    return order.tracking_history.select_related("actor").order_by("created_at")
+

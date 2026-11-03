@@ -1,11 +1,19 @@
 # mangementlogistics/orders/admin.py
 from django.contrib import admin
 
-from mangementlogistics.orders.models import Order
+from mangementlogistics.orders.models import Order, OrderTrackingHistory
+
+
+class OrderTrackingHistoryInline(admin.TabularInline):
+    model = OrderTrackingHistory
+    extra = 0
+    readonly_fields = ("created_at",)
+    can_delete = False
 
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
+    inlines = [OrderTrackingHistoryInline]
     list_display = (
         "tracking_number",
         "customer",
@@ -28,3 +36,12 @@ class OrderAdmin(admin.ModelAdmin):
         "driver__email",
     )
     readonly_fields = ("tracking_number", "created_at", "updated_at", "delivered_at")
+
+
+@admin.register(OrderTrackingHistory)
+class OrderTrackingHistoryAdmin(admin.ModelAdmin):
+    list_display = ("order", "status", "location", "actor", "created_at")
+    list_filter = ("status", "created_at")
+    search_fields = ("order__tracking_number", "location", "note")
+    readonly_fields = ("created_at",)
+

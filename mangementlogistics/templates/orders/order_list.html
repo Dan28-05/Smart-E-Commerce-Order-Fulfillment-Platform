@@ -10,11 +10,14 @@
       <p class="text-muted mb-0">Theo dõi, điều phối và xử lý toàn bộ quy trình vận chuyển</p>
     </div>
     <div class="d-flex gap-2">
+      <a href="{% url 'orders:order-export-csv' %}?status={{ selected_status|default:'' }}&search={{ search_query|default:'' }}" class="btn btn-outline-success">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Xuất CSV
+      </a>
       <a href="{% url 'orders:order-track' %}" class="btn btn-outline-secondary">
-        Tra cứu vận đơn
+        <i class="bi bi-search me-1"></i>Tra cứu vận đơn
       </a>
       <a href="{% url 'orders:order-create' %}" class="btn btn-primary">
-        + Tạo đơn hàng mới
+        <i class="bi bi-plus-circle me-1"></i>Tạo đơn mới
       </a>
     </div>
   </div>

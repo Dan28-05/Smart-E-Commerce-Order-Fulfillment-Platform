@@ -129,3 +129,53 @@ class Order(models.Model):
     def can_be_cancelled(self) -> bool:
         """Kiểm tra đơn hàng có thể hủy được hay không"""
         return self.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]
+
+
+class OrderTrackingHistory(models.Model):
+    """
+    Logistics tracking event history capturing milestones, locations, status updates, and notes.
+    """
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="tracking_history",
+        verbose_name=_("Đơn hàng"),
+    )
+    status = models.CharField(
+        _("Trạng thái"),
+        max_length=32,
+        choices=OrderStatus.choices,
+    )
+    location = models.CharField(
+        _("Vị trí / Bưu cục / Kho"),
+        max_length=255,
+        blank=True,
+        default="",
+    )
+    note = models.TextField(
+        _("Mô tả / Ghi chú hành trình"),
+        blank=True,
+        default="",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recorded_tracking_events",
+        verbose_name=_("Người ghi nhận"),
+    )
+    created_at = models.DateTimeField(
+        _("Thời gian ghi nhận"),
+        auto_now_add=True,
+        db_index=True,
+    )
+
+    class Meta:
+        verbose_name = _("Lịch sử hành trình")
+        verbose_name_plural = _("Lịch sử hành trình")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.order.tracking_number} - {self.get_status_display()} ({self.created_at.strftime('%d/%m/%Y %H:%M')})"
+

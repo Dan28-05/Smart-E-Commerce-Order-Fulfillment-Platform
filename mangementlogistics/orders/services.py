@@ -13,9 +13,30 @@ from mangementlogistics.orders.exceptions import (
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
 )
-from mangementlogistics.orders.models import Order
+from mangementlogistics.orders.models import Order, OrderTrackingHistory
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
+
+
+def order_add_tracking_event(
+    *,
+    order: Order,
+    status: str,
+    location: str = "",
+    note: str = "",
+    actor: User | None = None,
+) -> OrderTrackingHistory:
+    """
+    Creates and records a tracking history milestone for the order.
+    """
+    return OrderTrackingHistory.objects.create(
+        order=order,
+        status=status,
+        location=location.strip(),
+        note=note.strip(),
+        actor=actor,
+    )
+
 
 
 def order_create(
@@ -58,6 +79,16 @@ def order_create(
         payment_method=payment_method,
         status=OrderStatus.PENDING,
     )
+
+    # Record initial tracking milestone
+    order_add_tracking_event(
+        order=order,
+        status=OrderStatus.PENDING,
+        location=sender_address,
+        note="Đơn hàng được khởi tạo thành công trên hệ thống.",
+        actor=customer,
+    )
+
     return order
 
 
@@ -108,6 +139,8 @@ def order_update_status(
     new_status: str,
     actor: User,
     driver_id: int | None = None,
+    location: str = "",
+    note: str = "",
 ) -> Order:
     """
     Handles status transitions for an order.
@@ -157,6 +190,26 @@ def order_update_status(
             order.payment_status = OrderPaymentStatus.PAID
 
     order.save()
+
+    # Record tracking milestone
+    default_notes = {
+        OrderStatus.CONFIRMED: "Đơn hàng đã được xác nhận và chờ phân bổ điều phối.",
+        OrderStatus.PICKED_UP: "Tài xế đã tiếp nhận bưu phẩm từ người gửi.",
+        OrderStatus.IN_TRANSIT: "Bưu phẩm đang được vận chuyển đến người nhận.",
+        OrderStatus.DELIVERED: "Bưu phẩm đã được phát thành công cho người nhận.",
+        OrderStatus.RETURNED: "Bưu phẩm đã hoàn trả về người gửi.",
+    }
+    event_note = note or default_notes.get(
+        new_status, f"Đơn hàng chuyển sang trạng thái: {order.get_status_display()}"
+    )
+    order_add_tracking_event(
+        order=order,
+        status=new_status,
+        location=location,
+        note=event_note,
+        actor=actor,
+    )
+
     return order
 
 
@@ -180,7 +233,43 @@ def order_cancel(*, order: Order, actor: User, reason: str = "") -> Order:
         order.notes = f"{order.notes}\n[Lý do hủy]: {reason}".strip()
 
     order.save()
+
+    # Record cancellation event
+    order_add_tracking_event(
+        order=order,
+        status=OrderStatus.CANCELLED,
+        location="",
+        note=f"Đơn hàng đã bị hủy. {f'Lý do: {reason}' if reason else ''}".strip(),
+        actor=actor,
+    )
+
     return order
+
+
+def order_add_checkpoint(
+    *,
+    order: Order,
+    location: str,
+    note: str,
+    actor: User,
+) -> OrderTrackingHistory:
+    """
+    Allows driver or admin to record a custom transit checkpoint/milestone along the route.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_driver = getattr(actor, "role", None) == UserRole.DRIVER and order.driver_id == actor.id
+
+    if not is_admin and not is_driver:
+        raise OrderPermissionDeniedError("Chỉ tài xế phụ trách hoặc quản trị viên mới được cập nhật hành trình.")
+
+    return order_add_tracking_event(
+        order=order,
+        status=order.status,
+        location=location,
+        note=note,
+        actor=actor,
+    )
+
 
 
 def order_delete(*, order: Order, actor: User) -> None:

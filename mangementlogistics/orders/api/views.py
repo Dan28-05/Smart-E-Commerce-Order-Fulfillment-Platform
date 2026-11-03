@@ -7,9 +7,11 @@ from rest_framework.views import APIView
 
 from mangementlogistics.orders.api.serializers import (
     OrderCancelInputSerializer,
+    OrderCheckpointInputSerializer,
     OrderCreateInputSerializer,
     OrderOutputSerializer,
     OrderStatusUpdateInputSerializer,
+    OrderTrackingHistorySerializer,
     OrderUpdateInputSerializer,
 )
 from mangementlogistics.orders.exceptions import (
@@ -23,6 +25,7 @@ from mangementlogistics.orders.selectors import (
     order_list,
 )
 from mangementlogistics.orders.services import (
+    order_add_checkpoint,
     order_cancel,
     order_create,
     order_delete,
@@ -178,6 +181,8 @@ class OrderStatusUpdateApi(APIView):
 
         new_status = serializer.validated_data["status"]
         driver_id = serializer.validated_data.get("driver_id")
+        location = serializer.validated_data.get("location", "")
+        note = serializer.validated_data.get("note", "")
 
         try:
             updated_order = order_update_status(
@@ -185,12 +190,51 @@ class OrderStatusUpdateApi(APIView):
                 new_status=new_status,
                 actor=request.user,
                 driver_id=driver_id,
+                location=location,
+                note=note,
             )
         except (InvalidOrderStatusError, OrderPermissionDeniedError, DriverAssignmentError) as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         data = OrderOutputSerializer(updated_order).data
         return Response(data, status=status.HTTP_200_OK)
+
+
+class OrderCheckpointApi(APIView):
+    """
+    Record a new transit checkpoint/milestone along the route.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Ghi nhận mốc hành trình / checkpoint cho đơn hàng",
+        request=OrderCheckpointInputSerializer,
+        responses={201: OrderTrackingHistorySerializer, 400: {"type": "object", "properties": {"error": {"type": "string"}}}},
+    )
+    def post(self, request, order_id: int):
+        order = order_get_by_id(order_id=order_id, user=request.user)
+        if not order:
+            return Response({"error": "Đơn hàng không tồn tại."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = OrderCheckpointInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        location = serializer.validated_data["location"]
+        note = serializer.validated_data["note"]
+
+        try:
+            event = order_add_checkpoint(
+                order=order,
+                location=location,
+                note=note,
+                actor=request.user,
+            )
+        except OrderPermissionDeniedError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = OrderTrackingHistorySerializer(event).data
+        return Response(data, status=status.HTTP_201_CREATED)
+
 
 
 class OrderCancelApi(APIView):

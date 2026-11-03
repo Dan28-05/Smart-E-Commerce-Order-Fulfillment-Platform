@@ -102,12 +102,41 @@ class OrderStatusUpdateForm(forms.Form):
         label="Trạng thái đơn hàng",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    location = forms.CharField(
+        required=False,
+        label="Địa điểm / Bưu cục",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ví dụ: Kho phân loại Cầu Giấy"}),
+    )
+    note = forms.CharField(
+        required=False,
+        label="Ghi chú trạng thái",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ghi chú thêm tiến trình giao..."}),
+    )
     driver = forms.ModelChoiceField(
         queryset=User.objects.filter(role=UserRole.DRIVER, is_active=True),
         required=False,
         label="Tài xế phụ trách",
         widget=forms.Select(attrs={"class": "form-select"}),
         empty_label="-- Chưa phân công tài xế --",
+    )
+
+
+class OrderCheckpointForm(forms.Form):
+    """
+    Form for adding a transit checkpoint/milestone along the route.
+    """
+    location = forms.CharField(
+        max_length=255,
+        label="Vị trí / Bưu cục / Trạm trung chuyển",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Ví dụ: Bưu cục phát Tân Bình, TP.HCM"}
+        ),
+    )
+    note = forms.CharField(
+        label="Ghi chú tiến trình",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Ví dụ: Kiện hàng đã đến kho phát, chuẩn bị giao"}
+        ),
     )
 
 

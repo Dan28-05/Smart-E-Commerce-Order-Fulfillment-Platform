@@ -14,6 +14,7 @@ from mangementlogistics.orders.exceptions import (
     OrderPermissionDeniedError,
 )
 from mangementlogistics.orders.services import (
+    order_add_checkpoint,
     order_cancel,
     order_create,
     order_delete,
@@ -215,3 +216,45 @@ def test_order_delete(customer_user, admin_user):
 
     order_delete(order=order, actor=customer_user)
     assert not User.objects.filter(id=order.id).exists()
+
+
+def test_order_tracking_history_lifecycle(customer_user, driver_user, admin_user):
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender",
+        sender_phone="0901",
+        sender_address="Kho Long Bien",
+        receiver_name="Receiver",
+        receiver_phone="0902",
+        receiver_address="Quan 1 HCM",
+    )
+    # Check initial event
+    events = order.tracking_history.all()
+    assert events.count() == 1
+    assert events[0].status == OrderStatus.PENDING
+    assert "khởi tạo thành công" in events[0].note
+
+    # Update status to CONFIRMED
+    order_update_status(
+        order=order,
+        new_status=OrderStatus.CONFIRMED,
+        actor=admin_user,
+        driver_id=driver_user.id,
+        location="Hub Phan Loai",
+        note="Đã xác nhận đơn hàng",
+    )
+    assert order.tracking_history.count() == 2
+    latest = order.tracking_history.first()
+    assert latest.status == OrderStatus.CONFIRMED
+    assert latest.location == "Hub Phan Loai"
+
+    # Add custom checkpoint
+    checkpoint = order_add_checkpoint(
+        order=order,
+        location="Tram Trung Chuyen Da Nang",
+        note="Kien hang dang tren xe container trung chuyen",
+        actor=driver_user,
+    )
+    assert checkpoint.location == "Tram Trung Chuyen Da Nang"
+    assert order.tracking_history.count() == 3
+

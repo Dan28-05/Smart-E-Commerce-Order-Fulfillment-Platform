@@ -1,0 +1,170 @@
+{% load static %}<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Phiếu gửi hàng - #{{ order.tracking_number }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #000;
+    }
+    .bill-card {
+      max-width: 750px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 30px;
+      border: 2px dashed #333;
+      border-radius: 8px;
+    }
+    .barcode-box {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+      background: #fafafa;
+    }
+    .barcode-lines {
+      height: 48px;
+      letter-spacing: 3px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .cod-box {
+      border: 2px solid #dc3545;
+      background-color: #fff5f5;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    @media print {
+      body {
+        background-color: #fff;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .bill-card {
+        margin: 0;
+        max-width: 100%;
+        border: 1px solid #000;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Print Controls -->
+  <div class="container text-center my-3 no-print">
+    <button onclick="window.print()" class="btn btn-primary btn-lg px-4 me-2">
+      <i class="bi bi-printer-fill me-2"></i>In phiếu gửi hàng (Print AWB)
+    </button>
+    <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-outline-secondary btn-lg">
+      <i class="bi bi-arrow-left me-1"></i>Quay lại đơn hàng
+    </a>
+  </div>
+
+  <div class="bill-card shadow-sm">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+      <div>
+        <h4 class="fw-bold mb-0 text-primary">
+          <i class="bi bi-box-seam-fill me-1"></i>MangementLogistics
+        </h4>
+        <small class="text-muted">Hotline: 1900 8888 | www.mangementlogistics.vn</small>
+      </div>
+      <div class="text-end">
+        <div class="fw-bold fs-6">PHIẾU GIAO NHẬN BƯU KIỆN</div>
+        <small class="text-muted">Ngày tạo: {{ order.created_at|date:"d/m/Y H:i" }}</small>
+      </div>
+    </div>
+
+    <!-- Tracking Barcode & Routing -->
+    <div class="barcode-box mb-4">
+      <div class="barcode-lines text-dark">||||| | |||| ||| ||||||| |||||</div>
+      <div class="fs-4 fw-bold tracking-number text-dark mt-1">#{{ order.tracking_number }}</div>
+      <small class="text-muted">Quét mã để tra cứu hoặc cập nhật hành trình bưu kiện</small>
+    </div>
+
+    <!-- Sender & Receiver Grid -->
+    <div class="row g-3 mb-4">
+      <!-- Người gửi -->
+      <div class="col-6">
+        <div class="border p-3 h-100 rounded">
+          <div class="badge bg-secondary mb-2">NGƯỜI GỬI (FROM)</div>
+          <div class="fw-bold fs-6">{{ order.sender_name }}</div>
+          <div class="fw-semibold text-primary"><i class="bi bi-telephone me-1"></i>{{ order.sender_phone }}</div>
+          <div class="small mt-1 text-muted">{{ order.sender_address }}</div>
+        </div>
+      </div>
+
+      <!-- Người nhận -->
+      <div class="col-6">
+        <div class="border p-3 h-100 rounded bg-light">
+          <div class="badge bg-primary mb-2">NGƯỜI NHẬN (TO)</div>
+          <div class="fw-bold fs-5 text-danger">{{ order.receiver_name }}</div>
+          <div class="fw-bold fs-6 text-dark"><i class="bi bi-telephone me-1"></i>{{ order.receiver_phone }}</div>
+          <div class="small mt-1 text-dark fw-semibold">{{ order.receiver_address }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Package & Payment Details -->
+    <div class="table-responsive mb-4">
+      <table class="table table-bordered mb-0">
+        <thead class="table-light small">
+          <tr>
+            <th>Nội dung hàng hóa</th>
+            <th class="text-center" style="width: 120px;">Trọng lượng</th>
+            <th class="text-center" style="width: 150px;">Phí vận chuyển</th>
+            <th class="text-center" style="width: 150px;">Hình thức TT</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ order.item_description|default:"Hàng hóa tổng hợp" }}</div>
+              {% if order.notes %}
+                <div class="small text-danger mt-1"><strong>Ghi chú:</strong> {{ order.notes }}</div>
+              {% endif %}
+            </td>
+            <td class="text-center align-middle fw-bold">{{ order.weight }} kg</td>
+            <td class="text-center align-middle">{{ order.shipping_fee|floatformat:0 }} đ</td>
+            <td class="text-center align-middle small">{{ order.get_payment_method_display }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- COD Highlight -->
+    <div class="cod-box mb-4">
+      <div class="small fw-bold text-danger text-uppercase">Tiền thu hộ người nhận (COD):</div>
+      <div class="display-6 fw-bold text-danger my-1">{{ order.cod_amount|floatformat:0 }} VNĐ</div>
+      <div class="small text-muted">(Bằng chữ: Số tiền thu hộ khi giao bưu phẩm thành công)</div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="row text-center mt-4 pt-2">
+      <div class="col-4">
+        <div class="small fw-bold">CHỮ KÝ NGƯỜI GỬI</div>
+        <div class="text-muted small mb-5">(Ký & ghi rõ họ tên)</div>
+      </div>
+      <div class="col-4">
+        <div class="small fw-bold">CHỮ KÝ TÀI XẾ LẤY</div>
+        <div class="text-muted small mb-5">(Ký & ghi rõ họ tên)</div>
+      </div>
+      <div class="col-4">
+        <div class="small fw-bold text-danger">CHỮ KÝ NGƯỜI NHẬN</div>
+        <div class="text-muted small mb-5">(Đã nhận đủ hàng & thanh toán)</div>
+      </div>
+    </div>
+
+    <div class="text-center border-top pt-3 small text-muted">
+      Cảm ơn quý khách đã tin tưởng dịch vụ của MangementLogistics! Quý khách vui lòng kiểm tra hàng trước khi ký nhận.
+    </div>
+  </div>
+</body>
+</html>

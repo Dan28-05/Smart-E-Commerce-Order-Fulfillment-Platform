@@ -92,3 +92,33 @@ def test_order_web_crud_lifecycle(client, customer_user):
     assert resp_track.status_code == 200
     assert "Web Receiver Updated" in resp_track.content.decode("utf-8")
 
+
+def test_order_print_and_export_csv(client, customer_user):
+    client.force_login(customer_user)
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender Print",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver Print",
+        receiver_phone="0922",
+        receiver_address="HCM",
+    )
+
+    # Test Print View
+    print_url = reverse("orders:order-print", kwargs={"order_id": order.id})
+    resp_print = client.get(print_url)
+    assert resp_print.status_code == 200
+    assert "PHIẾU GIAO NHẬN BƯU KIỆN" in resp_print.content.decode("utf-8")
+    assert order.tracking_number in resp_print.content.decode("utf-8")
+
+    # Test CSV Export
+    export_url = reverse("orders:order-export-csv")
+    resp_export = client.get(export_url)
+    assert resp_export.status_code == 200
+    assert resp_export["Content-Type"].startswith("text/csv")
+    content = resp_export.content.decode("utf-8")
+    assert order.tracking_number in content
+    assert "Mã vận đơn" in content
+
+
