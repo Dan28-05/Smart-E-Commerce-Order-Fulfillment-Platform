@@ -123,11 +123,11 @@ class Order(models.Model):
 
     @property
     def total_amount(self):
-        """Tổng số tiền (COD + Cước phí)"""
+        """Total receivable amount (COD collection plus shipping fee)."""
         return self.cod_amount + self.shipping_fee
 
     def can_be_cancelled(self) -> bool:
-        """Kiểm tra đơn hàng có thể hủy được hay không"""
+        """Check whether the order can be cancelled based on current lifecycle status."""
         return self.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]
 
 

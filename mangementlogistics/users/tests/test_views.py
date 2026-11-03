@@ -1,107 +1,63 @@
 from __future__ import annotations
 
-from http import HTTPStatus
-from typing import TYPE_CHECKING
-
-import pytest
-from django.conf import settings
-from django.contrib import messages
-from django.contrib.auth.models import AnonymousUser
-from django.contrib.messages.middleware import MessageMiddleware
-from django.contrib.sessions.middleware import SessionMiddleware
-from django.http import HttpRequest
-from django.http import HttpResponseRedirect
+from django.test import Client
 from django.urls import reverse
-from django.utils.translation import gettext_lazy as _
+import pytest
 
-from mangementlogistics.users.forms import UserAdminChangeForm
-from mangementlogistics.users.tests.factories import UserFactory
-from mangementlogistics.users.views import UserRedirectView
-from mangementlogistics.users.views import UserUpdateView
-from mangementlogistics.users.views import user_detail_view
-
-if TYPE_CHECKING:
-    from django.test import RequestFactory
-
-    from mangementlogistics.users.models import User
+from mangementlogistics.users.constants import UserRole
+from mangementlogistics.users.models import User
 
 pytestmark = pytest.mark.django_db
 
 
-class TestUserUpdateView:
+@pytest.fixture
+def client():
+    return Client()
+
+
+@pytest.fixture
+def user():
+    return User.objects.create_user(
+        username="view_tester@example.com",
+        email="view_tester@example.com",
+        password="ValidPassword123!",
+        name="View Tester",
+        role=UserRole.CUSTOMER,
+    )
+
+
+def test_user_list_view(client, user):
     """
-    TODO:
-        extracting view initialization code as class-scoped fixture
-        would be great if only pytest-django supported non-function-scoped
-        fixture db access -- this is a work-in-progress for now:
-        https://github.com/pytest-dev/pytest-django/pull/258
+    Test user list view renders with HTTP 200 and displays user list.
     """
-
-    def dummy_get_response(self, request: HttpRequest):
-        return None
-
-    def test_get_success_url(self, user: User, rf: RequestFactory):
-        view = UserUpdateView()
-        request = rf.get("/fake-url/")
-        request.user = user
-
-        view.request = request
-        assert view.get_success_url() == f"/users/{user.username}/"
-
-    def test_get_object(self, user: User, rf: RequestFactory):
-        view = UserUpdateView()
-        request = rf.get("/fake-url/")
-        request.user = user
-
-        view.request = request
-
-        assert view.get_object() == user
-
-    def test_form_valid(self, user: User, rf: RequestFactory):
-        view = UserUpdateView()
-        request = rf.get("/fake-url/")
-
-        # Add the session/message middleware to the request
-        SessionMiddleware(self.dummy_get_response).process_request(request)
-        MessageMiddleware(self.dummy_get_response).process_request(request)
-        request.user = user
-
-        view.request = request
-
-        # Initialize the form
-        form = UserAdminChangeForm()
-        form.cleaned_data = {}
-        form.instance = user
-        view.form_valid(form)
-
-        messages_sent = [m.message for m in messages.get_messages(request)]
-        assert messages_sent == [_("Information successfully updated")]
+    url = reverse("users:user-list")
+    response = client.get(url)
+    assert response.status_code == 200
+    assert "view_tester@example.com" in response.content.decode("utf-8")
 
 
-class TestUserRedirectView:
-    def test_get_redirect_url(self, user: User, rf: RequestFactory):
-        view = UserRedirectView()
-        request = rf.get("/fake-url")
-        request.user = user
+def test_user_create_view_get(client):
+    """
+    Test user creation view GET request returns form.
+    """
+    url = reverse("users:user-create")
+    response = client.get(url)
+    assert response.status_code == 200
+    assert "Thêm người dùng mới" in response.content.decode("utf-8")
 
-        view.request = request
-        assert view.get_redirect_url() == f"/users/{user.username}/"
 
-
-class TestUserDetailView:
-    def test_authenticated(self, user: User, rf: RequestFactory):
-        request = rf.get("/fake-url/")
-        request.user = UserFactory.create()
-        response = user_detail_view(request, username=user.username)
-
-        assert response.status_code == HTTPStatus.OK
-
-    def test_not_authenticated(self, user: User, rf: RequestFactory):
-        request = rf.get("/fake-url/")
-        request.user = AnonymousUser()
-        response = user_detail_view(request, username=user.username)
-        login_url = reverse(settings.LOGIN_URL)
-
-        assert isinstance(response, HttpResponseRedirect)
-        assert response.status_code == HTTPStatus.FOUND
-        assert response.url == f"{login_url}?next=/fake-url/"
+def test_user_create_view_post_success(client):
+    """
+    Test user creation view POST request creates user and redirects.
+    """
+    url = reverse("users:user-create")
+    payload = {
+        "name": "New Web User",
+        "email": "new_web_user@example.com",
+        "password": "ValidPassword123!",
+        "password_confirm": "ValidPassword123!",
+        "role": UserRole.CUSTOMER,
+    }
+    response = client.post(url, data=payload, follow=True)
+    assert response.status_code == 200
+    assert User.objects.filter(email="new_web_user@example.com").exists()

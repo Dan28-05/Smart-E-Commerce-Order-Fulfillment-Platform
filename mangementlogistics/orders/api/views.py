@@ -74,7 +74,7 @@ class OrderListCreateApi(APIView):
 
         is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
 
-        # Xác định khách hàng tạo đơn
+        # Resolve customer creating the order
         customer = request.user
         customer_id = validated_data.pop("customer_id", None)
         if is_admin and customer_id:
@@ -83,7 +83,7 @@ class OrderListCreateApi(APIView):
                 return Response({"error": "Khách hàng được chỉ định không tồn tại."}, status=status.HTTP_400_BAD_REQUEST)
             customer = specified_customer
 
-        # Xác định tài xế (nếu có)
+        # Resolve assigned driver if provided
         driver = None
         driver_id = validated_data.pop("driver_id", None)
         if driver_id:

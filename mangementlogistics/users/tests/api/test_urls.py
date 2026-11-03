@@ -1,27 +1,21 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from django.urls import resolve
-from django.urls import reverse
-
-if TYPE_CHECKING:
-    from mangementlogistics.users.models import User
+from django.urls import resolve, reverse
 
 
-def test_user_detail(user: User):
-    assert (
-        reverse("api:user-detail", kwargs={"username": user.username})
-        == f"/api/users/{user.username}/"
-    )
-    assert resolve(f"/api/users/{user.username}/").view_name == "api:user-detail"
+def test_user_list_create_url():
+    """Test resolution of user list/create API endpoint."""
+    assert reverse("users_api:user-list-create") == "/api/users/"
+    assert resolve("/api/users/").view_name == "users_api:user-list-create"
 
 
-def test_user_list():
-    assert reverse("api:user-list") == "/api/users/"
-    assert resolve("/api/users/").view_name == "api:user-list"
+def test_user_me_url():
+    """Test resolution of user me profile API endpoint."""
+    assert reverse("users_api:user-me") == "/api/users/me/"
+    assert resolve("/api/users/me/").view_name == "users_api:user-me"
 
 
-def test_user_me():
-    assert reverse("api:user-me") == "/api/users/me/"
-    assert resolve("/api/users/me/").view_name == "api:user-me"
+def test_user_detail_url():
+    """Test resolution of user detail API endpoint."""
+    assert reverse("users_api:user-detail", kwargs={"user_id": 1}) == "/api/users/1/"
+    assert resolve("/api/users/1/").view_name == "users_api:user-detail"

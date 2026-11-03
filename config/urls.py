@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include
 from django.urls import path
@@ -13,6 +14,7 @@ from mangementlogistics.common.views import home_view
 
 urlpatterns = [
     path("", home_view, name="home"),
+    path("admin/", admin.site.urls),
     path(
         "about/",
         TemplateView.as_view(template_name="pages/about.html"),

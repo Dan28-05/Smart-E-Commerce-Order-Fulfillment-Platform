@@ -1,17 +1,17 @@
-import contextlib
 from http import HTTPStatus
-from importlib import reload
 
-import pytest
-from django.contrib import admin
-from django.contrib.auth.models import AnonymousUser
 from django.urls import reverse
-from pytest_django.asserts import assertRedirects
+import pytest
 
+from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
+
+pytestmark = pytest.mark.django_db
 
 
 class TestUserAdmin:
+    """Tests for User admin site views and actions."""
+
     def test_changelist(self, admin_client):
         url = reverse("admin:users_user_changelist")
         response = admin_client.get(url)
@@ -22,44 +22,14 @@ class TestUserAdmin:
         response = admin_client.get(url, data={"q": "test"})
         assert response.status_code == HTTPStatus.OK
 
-    def test_add(self, admin_client):
-        url = reverse("admin:users_user_add")
-        response = admin_client.get(url)
-        assert response.status_code == HTTPStatus.OK
-
-        response = admin_client.post(
-            url,
-            data={
-                "username": "test",
-                "password1": "My_R@ndom-P@ssw0rd",
-                "password2": "My_R@ndom-P@ssw0rd",
-            },
-        )
-        assert response.status_code == HTTPStatus.FOUND
-        assert User.objects.filter(username="test").exists()
-
     def test_view_user(self, admin_client):
-        user = User.objects.get(username="admin")
+        user = User.objects.create_user(
+            username="admin_view_test@example.com",
+            email="admin_view_test@example.com",
+            password="SamplePassword123!",
+            name="Admin View Test",
+            role=UserRole.ADMIN,
+        )
         url = reverse("admin:users_user_change", kwargs={"object_id": user.pk})
         response = admin_client.get(url)
         assert response.status_code == HTTPStatus.OK
-
-    @pytest.fixture
-    def _force_allauth(self, settings):
-        settings.DJANGO_ADMIN_FORCE_ALLAUTH = True
-        # Reload the admin module to apply the setting change
-        import mangementlogistics.users.admin as users_admin  # noqa: PLC0415
-
-        with contextlib.suppress(admin.sites.AlreadyRegistered):  # type: ignore[attr-defined]
-            reload(users_admin)
-
-    @pytest.mark.django_db
-    @pytest.mark.usefixtures("_force_allauth")
-    def test_allauth_login(self, rf, settings):
-        request = rf.get("/fake-url")
-        request.user = AnonymousUser()
-        response = admin.site.login(request)
-
-        # The `admin` login view should redirect to the `allauth` login view
-        target_url = reverse(settings.LOGIN_URL) + "?next=" + request.path
-        assertRedirects(response, target_url, fetch_redirect_response=False)

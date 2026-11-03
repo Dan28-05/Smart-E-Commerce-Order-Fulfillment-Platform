@@ -74,7 +74,7 @@ def password_change_view(request):
         if form.is_valid():
             try:
                 user = form.save()
-                # Giữ nguyên trạng thái đăng nhập của user sau khi đổi password
+                # Preserve user session authentication hash after password change
                 update_session_auth_hash(request, user)
                 messages.success(request, "Đổi mật khẩu thành công!")
                 return redirect("users:user-list")
@@ -120,7 +120,7 @@ def password_reset_confirm_view(request, uidb64: str, token: str):
     """
     View to set a new password using email reset link.
     """
-    # Kiểm tra tính hợp lệ của token trước khi hiển thị form
+    # Validate token integrity prior to displaying confirmation form
     try:
         user = auth_password_reset_validate_token(uidb64=uidb64, token=token)
     except InvalidTokenError as exc:
