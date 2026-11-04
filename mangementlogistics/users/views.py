@@ -17,9 +17,11 @@ from mangementlogistics.users.forms import (
     UserCreateForm,
     UserLoginForm,
     UserPasswordChangeForm,
+    UserProfileUpdateForm,
 )
 from mangementlogistics.users.models import User
 from mangementlogistics.users.selectors import user_list
+from mangementlogistics.users.services import user_update
 
 
 def user_list_view(request):
@@ -203,4 +205,40 @@ def user_logout_view(request):
     logout(request)
     messages.info(request, "Bạn đã đăng xuất thành công.")
     return redirect("home")
+
+
+@login_required
+def user_profile_view(request):
+    """
+    Renders personal user profile and processes profile information updates.
+    """
+    user = request.user
+    if request.method == "POST":
+        form = UserProfileUpdateForm(request.POST, instance=user)
+        if form.is_valid():
+            user_update(
+                user=user,
+                name=form.cleaned_data.get("name", ""),
+                phone_number=form.cleaned_data.get("phone_number"),
+                address=form.cleaned_data.get("address"),
+            )
+            messages.success(request, "Cập nhật hồ sơ cá nhân thành công!")
+            return redirect("users:profile")
+    else:
+        form = UserProfileUpdateForm(instance=user)
+
+    total_orders = user.orders.count() if hasattr(user, "orders") else 0
+    assigned_orders = user.assigned_orders.count() if hasattr(user, "assigned_orders") else 0
+
+    return render(
+        request,
+        "users/profile.html",
+        {
+            "form": form,
+            "user": user,
+            "total_orders": total_orders,
+            "assigned_orders": assigned_orders,
+        },
+    )
+
 

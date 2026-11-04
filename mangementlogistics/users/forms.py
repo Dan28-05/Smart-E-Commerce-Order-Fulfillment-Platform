@@ -209,3 +209,32 @@ class UserLoginForm(forms.Form):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
 
+
+class UserProfileUpdateForm(forms.ModelForm):
+    """
+    Form for authenticated users to update their personal profile information.
+    """
+    class Meta:
+        model = User
+        fields = ["name", "phone_number", "address"]
+        labels = {
+            "name": "Họ và tên",
+            "phone_number": "Số điện thoại liên hệ",
+            "address": "Địa chỉ mặc định",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ví dụ: Nguyễn Văn A"}),
+            "phone_number": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ví dụ: 0912345678"}),
+            "address": forms.TextInput(attrs={"class": "form-control", "placeholder": "Số nhà, tên đường, phường, quận, thành phố"}),
+        }
+
+    def clean_phone_number(self):
+        phone = self.cleaned_data.get("phone_number")
+        if phone:
+            phone = phone.strip()
+            # Ensure unique phone number except for current user
+            if User.objects.filter(phone_number=phone).exclude(id=self.instance.id).exists():
+                raise forms.ValidationError("Số điện thoại này đã được sử dụng bởi một tài khoản khác.")
+        return phone
+
+

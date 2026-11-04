@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Hồ sơ cá nhân - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="row g-4">
+    <!-- CỘT TRÁI: THẺ THÔNG TIN TÀI KHOẢN -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0 rounded-4 text-center p-4 bg-white">
+        <div class="mb-3">
+          <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-inline-flex align-items-center justify-content-center" style="width: 90px; height: 90px;">
+            <i class="bi bi-person-fill fs-1"></i>
+          </div>
+        </div>
+        <h4 class="fw-bold mb-1">{{ user.name|default:"Chưa cập nhật tên" }}</h4>
+        <p class="text-muted small mb-2">{{ user.email }}</p>
+
+        <div class="mb-3">
+          {% if user.role == "ADMIN" or user.is_superuser %}
+            <span class="badge bg-danger px-3 py-2 rounded-pill">Quản trị viên hệ thống</span>
+          {% elif user.role == "DRIVER" %}
+            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill">Tài xế giao vận</span>
+          {% else %}
+            <span class="badge bg-primary px-3 py-2 rounded-pill">Khách hàng / Chủ Shop</span>
+          {% endif %}
+        </div>
+
+        <hr class="my-3">
+
+        <div class="text-start small text-muted">
+          <div class="mb-2 d-flex justify-content-between">
+            <span><i class="bi bi-calendar-check me-2"></i>Ngày tham gia:</span>
+            <strong class="text-dark">{{ user.date_joined|date:"d/m/Y" }}</strong>
+          </div>
+          <div class="mb-2 d-flex justify-content-between">
+            <span><i class="bi bi-telephone me-2"></i>Số điện thoại:</span>
+            <strong class="text-dark">{{ user.phone_number|default:"Chưa cập nhật" }}</strong>
+          </div>
+          <div class="mb-2 d-flex justify-content-between">
+            <span><i class="bi bi-geo-alt me-2"></i>Địa chỉ:</span>
+            <strong class="text-dark text-end" style="max-width: 180px;">{{ user.address|default:"Chưa cập nhật" }}</strong>
+          </div>
+          {% if user.role == "CUSTOMER" %}
+            <div class="mt-3 p-3 bg-light rounded-3 text-center">
+              <span class="d-block text-muted small">Tổng số đơn hàng đã tạo</span>
+              <span class="fs-4 fw-bold text-primary">{{ total_orders }}</span>
+            </div>
+          {% elif user.role == "DRIVER" %}
+            <div class="mt-3 p-3 bg-light rounded-3 text-center">
+              <span class="d-block text-muted small">Số đơn hàng được giao</span>
+              <span class="fs-4 fw-bold text-warning">{{ assigned_orders }}</span>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="d-grid gap-2 mt-4">
+          <a href="{% url 'users:password-change' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-key me-1"></i>Đổi mật khẩu tài khoản
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: FORM CẬP NHẬT THÔNG TIN -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0 rounded-4 bg-white">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+          <h4 class="h5 fw-bold mb-1">
+            <i class="bi bi-pencil-square text-primary me-2"></i>Cập nhật thông tin cá nhân
+          </h4>
+          <p class="text-muted small mb-0">Cập nhật họ tên, số điện thoại và địa chỉ nhận/gửi hàng mặc định của bạn.</p>
+        </div>
+        <div class="card-body p-4">
+          <form method="post" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger" role="alert">
+                {% for error in form.non_field_errors %}
+                  <div><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <!-- Email (Readonly) -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold text-muted">
+                <i class="bi bi-envelope me-1"></i>Địa chỉ Email (Định danh đăng nhập)
+              </label>
+              <input type="email" class="form-control bg-light" value="{{ user.email }}" readonly disabled>
+              <div class="form-text small">Địa chỉ email là cố định và không thể thay đổi.</div>
+            </div>
+
+            <!-- Họ và tên -->
+            <div class="mb-3">
+              <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold">
+                <i class="bi bi-person me-1"></i>{{ form.name.label }}
+              </label>
+              {{ form.name }}
+              {% if form.name.errors %}
+                <div class="text-danger small mt-1">{{ form.name.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Số điện thoại -->
+            <div class="mb-3">
+              <label for="{{ form.phone_number.id_for_label }}" class="form-label fw-semibold">
+                <i class="bi bi-telephone me-1"></i>{{ form.phone_number.label }}
+              </label>
+              {{ form.phone_number }}
+              {% if form.phone_number.errors %}
+                <div class="text-danger small mt-1">{{ form.phone_number.errors|join:", " }}</div>
+              {% endif %}
+              <div class="form-text small">Tài xế và bưu tá sẽ liên hệ theo số điện thoại này khi phát bưu phẩm.</div>
+            </div>
+
+            <!-- Địa chỉ mặc định -->
+            <div class="mb-4">
+              <label for="{{ form.address.id_for_label }}" class="form-label fw-semibold">
+                <i class="bi bi-geo-alt me-1"></i>{{ form.address.label }}
+              </label>
+              {{ form.address }}
+              {% if form.address.errors %}
+                <div class="text-danger small mt-1">{{ form.address.errors|join:", " }}</div>
+              {% endif %}
+              <div class="form-text small">Địa chỉ mặc định sẽ tự động được điền khi bạn tạo đơn hàng mới.</div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+              <a href="{% url 'home' %}" class="btn btn-outline-secondary px-3">
+                Hủy bỏ
+              </a>
+              <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                <i class="bi bi-check2-circle me-1"></i>Lưu thay đổi
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}

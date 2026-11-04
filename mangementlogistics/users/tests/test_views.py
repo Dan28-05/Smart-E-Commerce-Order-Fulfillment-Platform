@@ -61,3 +61,41 @@ def test_user_create_view_post_success(client):
     response = client.post(url, data=payload, follow=True)
     assert response.status_code == 200
     assert User.objects.filter(email="new_web_user@example.com").exists()
+
+
+def test_user_profile_view_unauthenticated(client):
+    """
+    Test unauthenticated access to profile view redirects to login page.
+    """
+    url = reverse("users:profile")
+    response = client.get(url)
+    assert response.status_code == 302
+    assert "/users/login/" in response.url
+
+
+def test_user_profile_view_authenticated_get_and_post(client, user):
+    """
+    Test authenticated user can view and update profile information.
+    """
+    client.force_login(user)
+    url = reverse("users:profile")
+
+    # GET
+    response = client.get(url)
+    assert response.status_code == 200
+    assert user.email in response.content.decode("utf-8")
+    assert "Cập nhật thông tin cá nhân" in response.content.decode("utf-8")
+
+    # POST update
+    payload = {
+        "name": "Updated Name",
+        "phone_number": "0988776655",
+        "address": "999 Logistics Boulevard",
+    }
+    post_resp = client.post(url, data=payload, follow=True)
+    assert post_resp.status_code == 200
+    user.refresh_from_db()
+    assert user.name == "Updated Name"
+    assert user.phone_number == "0988776655"
+    assert user.address == "999 Logistics Boulevard"
+

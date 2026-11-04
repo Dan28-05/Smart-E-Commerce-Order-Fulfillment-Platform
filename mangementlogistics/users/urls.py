@@ -9,12 +9,14 @@ from mangementlogistics.users.views import (
     user_list_view,
     user_login_view,
     user_logout_view,
+    user_profile_view,
 )
 
 app_name = "users"
 
 urlpatterns = [
     path("", user_list_view, name="user-list"),
+    path("profile/", user_profile_view, name="profile"),
     path("login/", user_login_view, name="login"),
     path("logout/", user_logout_view, name="logout"),
     path("create/", user_create_view, name="user-create"),
