@@ -2,9 +2,10 @@
 import csv
 
 from django.contrib import messages
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from mangementlogistics.orders.constants import VIETNAM_PROVINCES
 from mangementlogistics.orders.exceptions import (
     DriverAssignmentError,
     InvalidOrderStatusError,
@@ -16,6 +17,7 @@ from mangementlogistics.orders.forms import (
     OrderCreateForm,
     OrderStatusUpdateForm,
     OrderUpdateForm,
+    ShippingFeeEstimatorForm,
 )
 from mangementlogistics.orders.models import Order
 from mangementlogistics.orders.selectors import (
@@ -25,6 +27,7 @@ from mangementlogistics.orders.selectors import (
     order_list,
 )
 from mangementlogistics.orders.services import (
+    calculate_shipping_rates,
     order_add_checkpoint,
     order_cancel,
     order_create,
@@ -86,11 +89,16 @@ def order_create_view(request):
             except Exception as exc:
                 messages.error(request, f"Lỗi tạo đơn hàng: {exc}")
     else:
-        # Pre-fill sender details from customer profile if available
+        # Pre-fill sender details from customer profile and query params if provided
         initial_data = {
             "sender_name": request.user.name or "",
             "sender_phone": request.user.phone_number or "",
-            "sender_address": request.user.address or "",
+            "sender_address": request.GET.get("sender_address") or request.user.address or "",
+            "receiver_address": request.GET.get("receiver_address") or "",
+            "weight": request.GET.get("weight") or 1.0,
+            "shipping_fee": request.GET.get("shipping_fee") or 0,
+            "cod_amount": request.GET.get("cod_amount") or 0,
+            "notes": request.GET.get("notes") or "",
         }
         form = OrderCreateForm(initial=initial_data)
 
@@ -393,3 +401,64 @@ def order_track_view(request):
             "tracking_history": tracking_history,
         },
     )
+
+
+def order_fee_estimator_view(request):
+    """
+    Renders the interactive shipping fee and delivery time estimator.
+    Supports standard GET/POST form submissions as well as AJAX JSON requests.
+    """
+    result = None
+    form = None
+
+    if request.method == "POST":
+        form = ShippingFeeEstimatorForm(request.POST)
+        if form.is_valid():
+            result = calculate_shipping_rates(**form.cleaned_data)
+    elif request.GET.get("sender_province") and request.GET.get("receiver_province"):
+        form = ShippingFeeEstimatorForm(request.GET)
+        if form.is_valid():
+            result = calculate_shipping_rates(**form.cleaned_data)
+    else:
+        # Default estimation initial state: Hanoi to HCMC, 1kg
+        default_sender = "Hà Nội"
+        default_receiver = "TP. Hồ Chí Minh"
+        if request.user.is_authenticated and getattr(request.user, "address", None):
+            for prov in VIETNAM_PROVINCES:
+                if prov in request.user.address:
+                    default_sender = prov
+                    break
+
+        form = ShippingFeeEstimatorForm(
+            initial={
+                "sender_province": default_sender,
+                "receiver_province": default_receiver,
+                "weight": 1.0,
+                "cod_amount": 0,
+            }
+        )
+        result = calculate_shipping_rates(
+            sender_province=default_sender,
+            receiver_province=default_receiver,
+            weight=1.0,
+            length=0,
+            width=0,
+            height=0,
+            cod_amount=0,
+        )
+
+    # AJAX JSON response support for interactive calculators
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.GET.get("format") == "json":
+        if result:
+            return JsonResponse({"status": "success", "data": result})
+        return JsonResponse({"status": "error", "errors": form.errors if form else "Invalid payload"}, status=400)
+
+    return render(
+        request,
+        "orders/fee_estimator.html",
+        {
+            "form": form,
+            "result": result,
+        },
+    )
+

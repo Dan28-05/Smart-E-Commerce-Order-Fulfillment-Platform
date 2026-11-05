@@ -1,5 +1,6 @@
 # mangementlogistics/orders/services.py
 from decimal import Decimal
+import math
 
 from django.utils import timezone
 
@@ -7,6 +8,10 @@ from mangementlogistics.orders.constants import (
     OrderPaymentMethod,
     OrderPaymentStatus,
     OrderStatus,
+    PROVINCE_REGIONS,
+    REGION_CENTRAL,
+    REGION_NORTH,
+    REGION_SOUTH,
 )
 from mangementlogistics.orders.exceptions import (
     DriverAssignmentError,
@@ -284,3 +289,156 @@ def order_delete(*, order: Order, actor: User) -> None:
         raise OrderPermissionDeniedError("Chỉ Quản trị viên hoặc người tạo (khi đơn chưa tiếp nhận) mới được xóa đơn hàng.")
 
     order.delete()
+
+
+def calculate_shipping_rates(
+    *,
+    sender_province: str,
+    receiver_province: str,
+    weight: Decimal | float | int,
+    length: Decimal | float | int = 0,
+    width: Decimal | float | int = 0,
+    height: Decimal | float | int = 0,
+    cod_amount: Decimal | float | int = 0,
+) -> dict:
+    """
+    Calculates logistics shipping costs, billable weight, route classification,
+    and estimated delivery times across service tiers (Economy, Standard, Express).
+    """
+    actual_weight = Decimal(str(weight or 1.0))
+    if actual_weight <= Decimal("0"):
+        actual_weight = Decimal("0.01")
+
+    # Calculate volumetric weight: (L x W x H in cm) / 5000
+    len_val = float(length or 0)
+    wid_val = float(width or 0)
+    hgt_val = float(height or 0)
+
+    if len_val > 0 and wid_val > 0 and hgt_val > 0:
+        volumetric_calc = round((len_val * wid_val * hgt_val) / 5000.0, 2)
+        volumetric_weight = Decimal(str(volumetric_calc))
+    else:
+        volumetric_weight = Decimal("0.00")
+
+    chargeable_weight = max(actual_weight, volumetric_weight)
+    is_volumetric = volumetric_weight > actual_weight
+
+    sender = sender_province.strip()
+    receiver = receiver_province.strip()
+
+    # Route classification
+    sender_reg = PROVINCE_REGIONS.get(sender, REGION_NORTH)
+    receiver_reg = PROVINCE_REGIONS.get(receiver, REGION_SOUTH)
+
+    if sender.lower() == receiver.lower() or (sender in PROVINCE_REGIONS and receiver in PROVINCE_REGIONS and sender == receiver):
+        route_type = "INTRA_PROVINCE"
+        route_label = "Nội tỉnh"
+        # Base: 18,000 VND up to 2.0 kg; +3,000 VND / additional 0.5 kg
+        base_threshold = Decimal("2.0")
+        base_cost = 18000
+        step_weight = 0.5
+        step_cost = 3000
+        sla_standard = "Trong ngày (12 - 24 giờ)"
+        sla_express = "2 - 4 giờ (Hỏa tốc nội thành)"
+        sla_economy = "1 - 2 ngày"
+    elif sender_reg == receiver_reg:
+        route_type = "INTRA_REGION"
+        region_name = "Miền Bắc" if sender_reg == REGION_NORTH else ("Miền Trung" if sender_reg == REGION_CENTRAL else "Miền Nam")
+        route_label = f"Nội miền ({region_name})"
+        # Base: 30,000 VND up to 1.0 kg; +5,000 VND / additional 0.5 kg
+        base_threshold = Decimal("1.0")
+        base_cost = 30000
+        step_weight = 0.5
+        step_cost = 5000
+        sla_standard = "24 - 48 giờ"
+        sla_express = "12 - 24 giờ"
+        sla_economy = "2 - 3 ngày"
+    else:
+        route_type = "INTER_REGION"
+        route_label = "Liên miền (Bắc - Trung - Nam)"
+        # Base: 45,000 VND up to 0.5 kg; +8,000 VND / additional 0.5 kg
+        base_threshold = Decimal("0.5")
+        base_cost = 45000
+        step_weight = 0.5
+        step_cost = 8000
+        sla_standard = "2 - 4 ngày"
+        sla_express = "24 - 36 giờ (Đường bay ưu tiên)"
+        sla_economy = "4 - 6 ngày (Đường bộ)"
+
+    # Base pricing calculation
+    if chargeable_weight <= base_threshold:
+        calculated_base_fee = base_cost
+    else:
+        extra_weight = float(chargeable_weight - base_threshold)
+        extra_steps = math.ceil(extra_weight / step_weight)
+        calculated_base_fee = base_cost + (extra_steps * step_cost)
+
+    # Insurance / COD fee (0.5% above 3,000,000 VND)
+    cod_decimal = Decimal(str(cod_amount or 0))
+    if cod_decimal > Decimal("3000000"):
+        insurance_fee = int(round(float(cod_decimal - Decimal("3000000")) * 0.005))
+    else:
+        insurance_fee = 0
+
+    # Service tiers:
+    # 1. Economy: 0.8x base fee (rounded to thousands)
+    economy_shipping = int(round(calculated_base_fee * 0.8 / 1000.0) * 1000)
+    # 2. Standard: 1.0x base fee
+    standard_shipping = int(round(calculated_base_fee * 1.0 / 1000.0) * 1000)
+    # 3. Express: 1.45x base fee
+    express_shipping = int(round(calculated_base_fee * 1.45 / 1000.0) * 1000)
+
+    plans = [
+        {
+            "code": "ECONOMY",
+            "name": "Giao Tiết Kiệm",
+            "tag": "Tiết kiệm 20%",
+            "badge_class": "bg-success",
+            "icon": "bi-piggy-bank-fill",
+            "shipping_fee": economy_shipping,
+            "insurance_fee": insurance_fee,
+            "total_fee": economy_shipping + insurance_fee,
+            "estimated_delivery": sla_economy,
+            "description": "Chi phí rẻ nhất, thích hợp cho kiện hàng cồng kềnh và hàng hóa không gấp.",
+        },
+        {
+            "code": "STANDARD",
+            "name": "Giao Tiêu Chuẩn",
+            "tag": "Khuyên dùng",
+            "badge_class": "bg-primary",
+            "icon": "bi-truck",
+            "shipping_fee": standard_shipping,
+            "insurance_fee": insurance_fee,
+            "total_fee": standard_shipping + insurance_fee,
+            "estimated_delivery": sla_standard,
+            "description": "Cân bằng hoàn hảo giữa tốc độ giao hàng ổn định và chi phí vận chuyển.",
+        },
+        {
+            "code": "EXPRESS",
+            "name": "Giao Hỏa Tốc",
+            "tag": "Nhanh nhất",
+            "badge_class": "bg-danger",
+            "icon": "bi-lightning-charge-fill",
+            "shipping_fee": express_shipping,
+            "insurance_fee": insurance_fee,
+            "total_fee": express_shipping + insurance_fee,
+            "estimated_delivery": sla_express,
+            "description": "Vận chuyển ưu tiên cao nhất, giao ngay trong ngày hoặc đường bay kết nối.",
+        },
+    ]
+
+    return {
+        "sender_province": sender,
+        "receiver_province": receiver,
+        "actual_weight": float(actual_weight),
+        "volumetric_weight": float(volumetric_weight),
+        "chargeable_weight": float(chargeable_weight),
+        "is_volumetric": is_volumetric,
+        "route_type": route_type,
+        "route_label": route_label,
+        "base_cost": calculated_base_fee,
+        "cod_amount": float(cod_decimal),
+        "insurance_fee": insurance_fee,
+        "plans": plans,
+    }
+

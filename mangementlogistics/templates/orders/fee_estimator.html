@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Ước tính Cước phí Vận chuyển & Thời gian Giao hàng - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <!-- Tiêu đề trang -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white overflow-hidden">
+    <div class="card-body p-4 p-md-5 bg-gradient" style="background: linear-gradient(135deg, #0d6efd 0%, #084298 100%);">
+      <div class="row align-items-center text-white">
+        <div class="col-lg-8">
+          <span class="badge bg-white text-primary px-3 py-1 rounded-pill fw-semibold mb-2">
+            <i class="bi bi-calculator me-1"></i>Công cụ tính cước thông minh
+          </span>
+          <h1 class="h2 fw-bold mb-2">Tra cứu Giá cước & Thời gian giao hàng</h1>
+          <p class="text-white-50 mb-0">
+            Dễ dàng dự toán chi phí vận chuyển, so sánh các gói dịch vụ và chọn phương án giao hàng tối ưu cho bưu kiện của bạn.
+          </p>
+        </div>
+        <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+          {% if request.user.is_authenticated %}
+            <a href="{% url 'orders:order-create' %}" class="btn btn-warning text-dark fw-bold px-4 py-2 rounded-pill shadow-sm">
+              <i class="bi bi-plus-circle me-1"></i>Tạo đơn ngay
+            </a>
+          {% else %}
+            <a href="{% url 'users:login' %}" class="btn btn-outline-light px-4 py-2 rounded-pill">
+              <i class="bi bi-box-arrow-in-right me-1"></i>Đăng nhập để tạo đơn
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- CỘT TRÁI: FORM NHẬP THÔNG SỐ VẬN CHUYỂN -->
+    <div class="col-lg-5">
+      <div class="card shadow-sm border-0 rounded-4 bg-white h-100">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+          <h4 class="h5 fw-bold mb-1">
+            <i class="bi bi-sliders text-primary me-2"></i>Thông số kiện hàng
+          </h4>
+          <p class="text-muted small mb-0">Điền địa điểm gửi - nhận và kích thước bưu phẩm để tính cước.</p>
+        </div>
+
+        <div class="card-body p-4">
+          <form method="post" id="feeCalculatorForm" novalidate>
+            {% csrf_token %}
+
+            <!-- Tỉnh / Thành Gửi -->
+            <div class="mb-3">
+              <label for="{{ form.sender_province.id_for_label }}" class="form-label fw-semibold text-dark">
+                <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ form.sender_province.label }}
+              </label>
+              {{ form.sender_province }}
+              {% if form.sender_province.errors %}
+                <div class="text-danger small mt-1">{{ form.sender_province.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Tỉnh / Thành Nhận -->
+            <div class="mb-3">
+              <label for="{{ form.receiver_province.id_for_label }}" class="form-label fw-semibold text-dark">
+                <i class="bi bi-pin-map-fill text-success me-1"></i>{{ form.receiver_province.label }}
+              </label>
+              {{ form.receiver_province }}
+              {% if form.receiver_province.errors %}
+                <div class="text-danger small mt-1">{{ form.receiver_province.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Khối lượng thực tế -->
+            <div class="mb-3">
+              <label for="{{ form.weight.id_for_label }}" class="form-label fw-semibold text-dark">
+                <i class="bi bi-speedometer2 text-primary me-1"></i>{{ form.weight.label }}
+              </label>
+              <div class="input-group">
+                {{ form.weight }}
+                <span class="input-group-text bg-light text-muted">kg</span>
+              </div>
+              {% if form.weight.errors %}
+                <div class="text-danger small mt-1">{{ form.weight.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+
+            <!-- Kích thước kiện hàng (Dài x Rộng x Cao) -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold text-dark mb-1">
+                <i class="bi bi-box-seam text-secondary me-1"></i>Kích thước kiện hàng (cm) - <span class="text-muted fw-normal small">Không bắt buộc</span>
+              </label>
+              <div class="row g-2">
+                <div class="col-4">
+                  <div class="input-group input-group-sm">
+                    {{ form.length }}
+                    <span class="input-group-text px-1 text-muted small">D</span>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="input-group input-group-sm">
+                    {{ form.width }}
+                    <span class="input-group-text px-1 text-muted small">R</span>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="input-group input-group-sm">
+                    {{ form.height }}
+                    <span class="input-group-text px-1 text-muted small">C</span>
+                  </div>
+                </div>
+              </div>
+              <div class="form-text small text-muted">
+                Quy đổi theo chuẩn IATA: <code class="text-dark">(Dài × Rộng × Cao) / 5000</code>.
+              </div>
+            </div>
+
+            <!-- Tiền thu hộ COD / Khai giá -->
+            <div class="mb-4">
+              <label for="{{ form.cod_amount.id_for_label }}" class="form-label fw-semibold text-dark">
+                <i class="bi bi-cash-stack text-warning me-1"></i>{{ form.cod_amount.label }}
+              </label>
+              <div class="input-group">
+                {{ form.cod_amount }}
+                <span class="input-group-text bg-light text-muted">VNĐ</span>
+              </div>
+              <div class="form-text small text-muted">
+                Miễn phí bảo hiểm bưu gửi dưới 3.000.000 đ. Phí 0.5% với phần vượt quá.
+              </div>
+              {% if form.cod_amount.errors %}
+                <div class="text-danger small mt-1">{{ form.cod_amount.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg fw-semibold shadow-sm rounded-3">
+                <i class="bi bi-calculator me-1"></i>Tính giá cước vận chuyển
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: KẾT QUẢ TÍNH CƯỚC & GÓI DỊCH VỤ -->
+    <div class="col-lg-7">
+      {% if result %}
+        <!-- Thẻ Tổng quan Lộ trình & Trọng lượng tính cước -->
+        <div class="card shadow-sm border-0 rounded-4 bg-white mb-4">
+          <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold fs-5 text-dark">{{ result.sender_province }}</span>
+                <i class="bi bi-arrow-right text-primary fs-5"></i>
+                <span class="fw-bold fs-5 text-dark">{{ result.receiver_province }}</span>
+              </div>
+              <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-2 rounded-pill fw-semibold">
+                {{ result.route_label }}
+              </span>
+            </div>
+
+            <div class="row g-3 p-3 bg-light rounded-3 text-center">
+              <div class="col-sm-4 border-end">
+                <span class="d-block text-muted small">Khối lượng thực tế</span>
+                <span class="fw-bold text-dark fs-6">{{ result.actual_weight }} kg</span>
+              </div>
+              <div class="col-sm-4 border-end">
+                <span class="d-block text-muted small">Khối lượng quy đổi</span>
+                <span class="fw-bold text-dark fs-6">{{ result.volumetric_weight }} kg</span>
+              </div>
+              <div class="col-sm-4">
+                <span class="d-block text-muted small">Khối lượng tính cước</span>
+                <span class="fw-bold text-primary fs-6">
+                  {{ result.chargeable_weight }} kg
+                  {% if result.is_volumetric %}
+                    <span class="badge bg-warning text-dark small" title="Tính theo thể tích quy đổi">Quy đổi</span>
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+
+            {% if result.insurance_fee > 0 %}
+              <div class="alert alert-info py-2 px-3 small mt-3 mb-0 d-flex align-items-center">
+                <i class="bi bi-shield-check fs-5 me-2 text-info"></i>
+                <span>Phụ phí bảo hiểm khai giá COD hàng giá trị cao: <strong>{{ result.insurance_fee|floatformat:0 }} đ</strong></span>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Danh sách các gói dịch vụ giao vận -->
+        <h5 class="fw-bold text-dark mb-3">
+          <i class="bi bi-box-seam-fill text-primary me-2"></i>Các gói cước đề xuất ({{ result.plans|length }} lựa chọn)
+        </h5>
+
+        <div class="row g-3 mb-4">
+          {% for plan in result.plans %}
+            <div class="col-12">
+              <div class="card shadow-sm border-0 rounded-4 bg-white overflow-hidden transition-all h-100 border-start border-4 {% if plan.code == 'STANDARD' %}border-primary{% elif plan.code == 'EXPRESS' %}border-danger{% else %}border-success{% endif %}">
+                <div class="card-body p-4">
+                  <div class="row align-items-center">
+                    <div class="col-md-7">
+                      <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="badge {{ plan.badge_class }} rounded-pill px-3 py-1">{{ plan.tag }}</span>
+                        <h5 class="fw-bold text-dark mb-0">{{ plan.name }}</h5>
+                      </div>
+                      <p class="text-muted small mb-2">{{ plan.description }}</p>
+                      <div class="d-flex align-items-center gap-2 text-muted small">
+                        <i class="bi bi-clock-history text-primary"></i>
+                        <span>Thời gian giao dự kiến: <strong class="text-dark">{{ plan.estimated_delivery }}</strong></span>
+                      </div>
+                    </div>
+
+                    <div class="col-md-5 text-md-end mt-3 mt-md-0 border-top border-md-top-0 pt-3 pt-md-0">
+                      <div class="mb-2">
+                        <span class="fs-4 fw-bold text-primary">{{ plan.total_fee|floatformat:0 }} đ</span>
+                        <div class="text-muted small">Cước vận chuyển: {{ plan.shipping_fee|floatformat:0 }} đ</div>
+                      </div>
+
+                      {% if request.user.is_authenticated %}
+                        <a href="{% url 'orders:order-create' %}?weight={{ result.chargeable_weight }}&shipping_fee={{ plan.shipping_fee }}&sender_address={{ result.sender_province|urlencode }}&receiver_address={{ result.receiver_province|urlencode }}&cod_amount={{ result.cod_amount }}&notes={{ plan.name|urlencode }}"
+                           class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold">
+                          <i class="bi bi-check2-circle me-1"></i>Tạo đơn với gói này
+                        </a>
+                      {% else %}
+                        <a href="{% url 'users:login' %}?next={% url 'orders:order-create' %}?weight={{ result.chargeable_weight }}&shipping_fee={{ plan.shipping_fee }}&sender_address={{ result.sender_province|urlencode }}&receiver_address={{ result.receiver_province|urlencode }}"
+                           class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                          <i class="bi bi-box-arrow-in-right me-1"></i>Đăng nhập để tạo đơn
+                        </a>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <!-- Thẻ hướng dẫn & cam kết chất lượng -->
+      <div class="card shadow-sm border-0 rounded-4 bg-white p-4">
+        <h6 class="fw-bold text-dark mb-3">
+          <i class="bi bi-info-circle text-info me-2"></i>Quy định tính cước & Cam kết dịch vụ
+        </h6>
+        <div class="row g-3 small text-muted">
+          <div class="col-md-6">
+            <ul class="list-unstyled mb-0">
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Khối lượng tính cước:</strong> So sánh giữa trọng lượng thực tế và trọng lượng thể tích theo công thức quốc tế.</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Miễn phí thu hộ COD:</strong> Tiền hàng thu hộ được đối soát minh bạch, định kỳ theo chu kỳ mong muốn.</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <ul class="list-unstyled mb-0">
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Bảo hiểm an tâm 100%:</strong> Bồi thường thỏa đáng khi có rủi ro bể vỡ, thất lạc hàng hóa.</li>
+              <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Đa dạng phương thức:</strong> Hỗ trợ thanh toán tiền mặt lúc giao hàng hoặc chuyển khoản ngân hàng.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}

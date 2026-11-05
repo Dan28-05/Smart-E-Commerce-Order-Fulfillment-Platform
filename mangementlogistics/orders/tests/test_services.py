@@ -14,6 +14,7 @@ from mangementlogistics.orders.exceptions import (
     OrderPermissionDeniedError,
 )
 from mangementlogistics.orders.services import (
+    calculate_shipping_rates,
     order_add_checkpoint,
     order_cancel,
     order_create,
@@ -257,4 +258,92 @@ def test_order_tracking_history_lifecycle(customer_user, driver_user, admin_user
     )
     assert checkpoint.location == "Tram Trung Chuyen Da Nang"
     assert order.tracking_history.count() == 3
+
+
+def test_calculate_shipping_rates_intra_province():
+    """
+    Test shipping calculation within the same province (intra-province route).
+    """
+    res = calculate_shipping_rates(
+        sender_province="Hà Nội",
+        receiver_province="Hà Nội",
+        weight=1.5,
+    )
+    assert res["route_type"] == "INTRA_PROVINCE"
+    assert res["route_label"] == "Nội tỉnh"
+    assert res["chargeable_weight"] == 1.5
+    assert not res["is_volumetric"]
+    assert len(res["plans"]) == 3
+
+    # Base cost for intra-province up to 2kg is 18,000 VND
+    standard_plan = next(p for p in res["plans"] if p["code"] == "STANDARD")
+    assert standard_plan["shipping_fee"] == 18000
+    assert standard_plan["total_fee"] == 18000
+
+
+def test_calculate_shipping_rates_intra_region():
+    """
+    Test shipping calculation within the same region (intra-region route).
+    """
+    res = calculate_shipping_rates(
+        sender_province="Hà Nội",
+        receiver_province="Hải Phòng",
+        weight=1.0,
+    )
+    assert res["route_type"] == "INTRA_REGION"
+    assert "Nội miền" in res["route_label"]
+    standard_plan = next(p for p in res["plans"] if p["code"] == "STANDARD")
+    assert standard_plan["shipping_fee"] == 30000
+
+
+def test_calculate_shipping_rates_inter_region():
+    """
+    Test shipping calculation across different regions (inter-region route).
+    """
+    res = calculate_shipping_rates(
+        sender_province="Hà Nội",
+        receiver_province="TP. Hồ Chí Minh",
+        weight=0.5,
+    )
+    assert res["route_type"] == "INTER_REGION"
+    assert "Liên miền" in res["route_label"]
+    standard_plan = next(p for p in res["plans"] if p["code"] == "STANDARD")
+    assert standard_plan["shipping_fee"] == 45000
+
+
+def test_calculate_shipping_rates_volumetric_weight():
+    """
+    Test volumetric weight calculation: (L x W x H) / 5000 overrides light actual weight.
+    """
+    # 50cm x 40cm x 30cm = 60,000 / 5,000 = 12.0 kg > 1.0 kg actual weight
+    res = calculate_shipping_rates(
+        sender_province="Hà Nội",
+        receiver_province="Hà Nội",
+        weight=1.0,
+        length=50,
+        width=40,
+        height=30,
+    )
+    assert res["is_volumetric"] is True
+    assert res["actual_weight"] == 1.0
+    assert res["volumetric_weight"] == 12.0
+    assert res["chargeable_weight"] == 12.0
+
+
+def test_calculate_shipping_rates_insurance_cod():
+    """
+    Test insurance surcharge when COD / declared value exceeds 3,000,000 VND.
+    """
+    # 5,000,000 VND -> excess 2,000,000 * 0.005 = 10,000 VND insurance fee
+    res = calculate_shipping_rates(
+        sender_province="Hà Nội",
+        receiver_province="Hà Nội",
+        weight=1.0,
+        cod_amount=5000000,
+    )
+    assert res["insurance_fee"] == 10000
+    standard_plan = next(p for p in res["plans"] if p["code"] == "STANDARD")
+    assert standard_plan["insurance_fee"] == 10000
+    assert standard_plan["total_fee"] == standard_plan["shipping_fee"] + 10000
+
 

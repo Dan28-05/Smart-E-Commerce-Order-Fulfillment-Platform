@@ -122,3 +122,79 @@ def test_order_print_and_export_csv(client, customer_user):
     assert "Mã vận đơn" in content
 
 
+def test_order_fee_estimator_view_get(client):
+    """
+    Test public GET access to the shipping fee calculator page.
+    """
+    url = reverse("orders:fee-estimator")
+    resp = client.get(url)
+    assert resp.status_code == 200
+    content = resp.content.decode("utf-8")
+    assert "Tra cứu Giá cước & Thời gian giao hàng" in content
+    assert "Thông số kiện hàng" in content
+    assert "Giao Tiêu Chuẩn" in content
+
+
+def test_order_fee_estimator_view_post_calculation(client):
+    """
+    Test POST submission on shipping fee calculator calculates and returns plan results.
+    """
+    url = reverse("orders:fee-estimator")
+    payload = {
+        "sender_province": "Hà Nội",
+        "receiver_province": "Đà Nẵng",
+        "weight": "2.5",
+        "length": "30",
+        "width": "20",
+        "height": "10",
+        "cod_amount": "500000",
+    }
+    resp = client.post(url, data=payload)
+    assert resp.status_code == 200
+    content = resp.content.decode("utf-8")
+    assert "Hà Nội" in content
+    assert "Đà Nẵng" in content
+    assert "Liên miền" in content
+
+
+def test_order_fee_estimator_view_ajax_json(client):
+    """
+    Test AJAX JSON endpoint for dynamic live recalculation.
+    """
+    url = reverse("orders:fee-estimator")
+    params = {
+        "sender_province": "Hà Nội",
+        "receiver_province": "TP. Hồ Chí Minh",
+        "weight": "1.0",
+    }
+    resp = client.get(url, data=params, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+    assert resp.status_code == 200
+    json_data = resp.json()
+    assert json_data["status"] == "success"
+    assert json_data["data"]["route_type"] == "INTER_REGION"
+    assert len(json_data["data"]["plans"]) == 3
+
+
+def test_order_create_view_prefills_from_get_params(client, customer_user):
+    """
+    Test order create form pre-fills sender/receiver and shipping fee from GET query params.
+    """
+    client.force_login(customer_user)
+    url = reverse("orders:order-create")
+    params = {
+        "weight": "3.5",
+        "shipping_fee": "45000",
+        "sender_address": "Hà Nội",
+        "receiver_address": "TP. Hồ Chí Minh",
+        "cod_amount": "200000",
+        "notes": "Giao Hỏa Tốc",
+    }
+    resp = client.get(url, data=params)
+    assert resp.status_code == 200
+    content = resp.content.decode("utf-8")
+    assert 'value="3.5"' in content
+    assert 'value="45000"' in content
+    assert 'value="200000"' in content
+
+
+

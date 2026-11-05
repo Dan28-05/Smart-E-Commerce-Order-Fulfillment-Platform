@@ -249,6 +249,10 @@
               <span><i class="bi bi-box-seam me-2 text-primary fs-5 align-middle"></i>Tạo đơn bưu kiện mới</span>
               <i class="bi bi-chevron-right text-muted"></i>
             </a>
+            <a href="{% url 'orders:fee-estimator' %}" class="btn btn-outline-secondary text-start d-flex align-items-center justify-content-between p-3 rounded-3">
+              <span><i class="bi bi-calculator me-2 text-success fs-5 align-middle"></i>Tính cước & thời gian giao</span>
+              <i class="bi bi-chevron-right text-muted"></i>
+            </a>
             <a href="{% url 'orders:order-track' %}" class="btn btn-outline-secondary text-start d-flex align-items-center justify-content-between p-3 rounded-3">
               <span><i class="bi bi-geo-alt me-2 text-info fs-5 align-middle"></i>Tra cứu mã vận đơn</span>
               <i class="bi bi-chevron-right text-muted"></i>
@@ -341,14 +345,17 @@
 
         <!-- Action CTAs -->
         <div class="d-flex flex-wrap gap-3 align-items-center">
-          <a href="{% url 'users:user-create' %}" class="btn btn-warning btn-lg text-dark fw-bold px-4 rounded-pill shadow">
+          <a href="{% url 'orders:fee-estimator' %}" class="btn btn-warning btn-lg text-dark fw-bold px-4 rounded-pill shadow">
+            <i class="bi bi-calculator me-2"></i>Tính cước vận chuyển
+          </a>
+          <a href="{% url 'users:user-create' %}" class="btn btn-outline-light btn-lg px-4 rounded-pill">
             <i class="bi bi-rocket-takeoff-fill me-2"></i>Đăng ký tài khoản
           </a>
           <a href="{% url 'users:login' %}" class="btn btn-outline-light btn-lg px-4 rounded-pill">
-            <i class="bi bi-box-arrow-in-right me-2"></i>Đăng nhập hệ thống
+            <i class="bi bi-box-arrow-in-right me-2"></i>Đăng nhập
           </a>
           <a href="{% url 'api-docs' %}" target="_blank" class="text-white-50 text-decoration-none small ms-lg-2">
-            <i class="bi bi-code-slash me-1"></i>API Documentation →
+            <i class="bi bi-code-slash me-1"></i>API Docs →
           </a>
         </div>
       </div>

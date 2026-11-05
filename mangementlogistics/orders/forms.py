@@ -1,7 +1,11 @@
 # mangementlogistics/orders/forms.py
 from django import forms
 
-from mangementlogistics.orders.constants import OrderPaymentMethod, OrderStatus
+from mangementlogistics.orders.constants import (
+    OrderPaymentMethod,
+    OrderStatus,
+    VIETNAM_PROVINCES,
+)
 from mangementlogistics.orders.models import Order
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
@@ -149,3 +153,58 @@ class OrderCancelForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Nhập lý do bạn muốn hủy đơn hàng này..."}),
     )
+
+
+class ShippingFeeEstimatorForm(forms.Form):
+    """
+    Form for estimating logistics delivery rates, SLAs, and insurance based on route and package size.
+    """
+    PROVINCE_CHOICES = [("", "-- Chọn Tỉnh / Thành phố --")] + [(p, p) for p in VIETNAM_PROVINCES]
+
+    sender_province = forms.ChoiceField(
+        choices=PROVINCE_CHOICES,
+        label="Tỉnh / Thành phố gửi hàng",
+        widget=forms.Select(attrs={"class": "form-select", "id": "id_sender_province"}),
+        initial="Hà Nội",
+    )
+    receiver_province = forms.ChoiceField(
+        choices=PROVINCE_CHOICES,
+        label="Tỉnh / Thành phố nhận hàng",
+        widget=forms.Select(attrs={"class": "form-select", "id": "id_receiver_province"}),
+        initial="TP. Hồ Chí Minh",
+    )
+    weight = forms.DecimalField(
+        min_value=0.01,
+        initial=1.0,
+        label="Trọng lượng thực tế (kg)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.1", "placeholder": "1.0", "id": "id_weight"}),
+    )
+    length = forms.DecimalField(
+        min_value=0,
+        required=False,
+        initial=0,
+        label="Chiều dài (cm)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "1", "placeholder": "Dài (cm)", "id": "id_length"}),
+    )
+    width = forms.DecimalField(
+        min_value=0,
+        required=False,
+        initial=0,
+        label="Chiều rộng (cm)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "1", "placeholder": "Rộng (cm)", "id": "id_width"}),
+    )
+    height = forms.DecimalField(
+        min_value=0,
+        required=False,
+        initial=0,
+        label="Chiều cao (cm)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "1", "placeholder": "Cao (cm)", "id": "id_height"}),
+    )
+    cod_amount = forms.DecimalField(
+        min_value=0,
+        required=False,
+        initial=0,
+        label="Tiền thu hộ COD / Khai giá (VNĐ)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "10000", "placeholder": "0", "id": "id_cod_amount"}),
+    )
+

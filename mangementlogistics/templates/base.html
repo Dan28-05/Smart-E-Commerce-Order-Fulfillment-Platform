@@ -71,13 +71,18 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-white-50 {% if 'orders' in request.resolver_match.namespace and request.resolver_match.url_name != 'order-track' %}active text-white fw-semibold{% endif %}" href="{% url 'orders:order-list' %}">
+                <a class="nav-link text-white-50 {% if 'orders' in request.resolver_match.namespace and request.resolver_match.url_name not in 'order-track,fee-estimator' %}active text-white fw-semibold{% endif %}" href="{% url 'orders:order-list' %}">
                   <i class="bi bi-box-seam me-1"></i>Quản lý Đơn hàng
                 </a>
               </li>
               <li class="nav-item">
                 <a class="nav-link text-white-50 {% if request.resolver_match.url_name == 'order-track' %}active text-white fw-semibold{% endif %}" href="{% url 'orders:order-track' %}">
                   <i class="bi bi-geo-alt me-1"></i>Tra cứu vận đơn
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link text-white-50 {% if request.resolver_match.url_name == 'fee-estimator' %}active text-white fw-semibold{% endif %}" href="{% url 'orders:fee-estimator' %}">
+                  <i class="bi bi-calculator me-1"></i>Ước tính cước phí
                 </a>
               </li>
               {% if request.user.is_authenticated and request.user.role == "ADMIN" or request.user.is_superuser %}
@@ -184,6 +189,7 @@
           <div class="col-lg-2 col-md-6 col-6">
             <h6 class="text-white fw-semibold mb-3">Dịch vụ</h6>
             <ul class="list-unstyled small mb-0">
+              <li class="mb-2"><a href="{% url 'orders:fee-estimator' %}" class="text-white-50 text-decoration-none hover-white">Ước tính cước phí</a></li>
               <li class="mb-2"><a href="{% url 'orders:order-track' %}" class="text-white-50 text-decoration-none hover-white">Tra cứu bưu kiện</a></li>
               <li class="mb-2"><a href="{% url 'orders:order-create' %}" class="text-white-50 text-decoration-none hover-white">Tạo đơn gửi hàng</a></li>
               <li class="mb-2"><a href="{% url 'orders:order-list' %}" class="text-white-50 text-decoration-none hover-white">Quản lý bưu kiện</a></li>
