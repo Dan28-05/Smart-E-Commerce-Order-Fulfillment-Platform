@@ -471,5 +471,82 @@ def test_cod_reconciliation_full_lifecycle_and_selectors(customer_user, admin_us
     assert rec_list.first().id == rec.id
 
 
+def test_cod_reconciliation_end_to_end_delivery_to_payout(customer_user, driver_user, admin_user):
+    """
+    End-to-end integration test from order creation, driver delivery, reconciliation, to payout.
+    """
+    # 1. Shop creates COD order
+    order = order_create(
+        customer=customer_user,
+        sender_name="Tech Store",
+        sender_phone="0918112233",
+        sender_address="123 Nguyen Trai, Ha Noi",
+        receiver_name="Nguyen Van A",
+        receiver_phone="0988776655",
+        receiver_address="456 Le Loi, TP. HCM",
+        weight=Decimal("1.5"),
+        cod_amount=Decimal("1500000.00"),
+        shipping_fee=Decimal("45000.00"),
+        payment_method=OrderPaymentMethod.COD,
+    )
+    assert order.status == OrderStatus.PENDING
+    assert order.reconciliation is None
+
+    # 2. Admin confirms and assigns driver, then driver picks up and delivers
+    order_update_status(
+        order=order,
+        new_status=OrderStatus.CONFIRMED,
+        actor=admin_user,
+        driver_id=driver_user.id,
+        location="Trung tam dieu phoi",
+        note="Xác nhận và phân công tài xế",
+    )
+    order_update_status(
+        order=order,
+        new_status=OrderStatus.PICKED_UP,
+        actor=driver_user,
+        location="Kho Ha Noi",
+        note="Đã nhận bưu kiện từ shop",
+    )
+    order_update_status(
+        order=order,
+        new_status=OrderStatus.DELIVERED,
+        actor=driver_user,
+        location="Quan 1, TP. HCM",
+        note="Phát hàng thành công và đã thu tiền COD",
+    )
+    order.refresh_from_db()
+    assert order.status == OrderStatus.DELIVERED
+    assert order.delivered_at is not None
+
+    # 3. Customer checks eligible orders and generates statement
+    from mangementlogistics.orders.selectors import cod_reconciliation_get_eligible_orders
+    eligible = cod_reconciliation_get_eligible_orders(customer=customer_user)
+    assert eligible.filter(id=order.id).exists()
+
+    rec = cod_reconciliation_generate(
+        customer=customer_user,
+        actor=customer_user,
+        notes="Kỳ đối soát tự động cuối tuần",
+    )
+    assert rec.total_orders_count == 1
+    assert rec.total_cod_amount == Decimal("1500000.00")
+    assert rec.total_shipping_fees == Decimal("45000.00")
+    assert rec.net_payout_amount == Decimal("1455000.00")
+    assert rec.status == CODReconciliationStatus.PENDING
+
+    # 4. Admin marks paid
+    cod_reconciliation_mark_paid(
+        reconciliation=rec,
+        actor=admin_user,
+        notes="Chuyển khoản thành công vào STK MBBank của shop",
+    )
+    rec.refresh_from_db()
+    order.refresh_from_db()
+    assert rec.status == CODReconciliationStatus.PAID
+    assert order.payment_status == OrderPaymentStatus.PAID
+
+
+
 
 

@@ -85,6 +85,13 @@
                   <i class="bi bi-calculator me-1"></i>Ước tính cước phí
                 </a>
               </li>
+              {% if request.user.is_authenticated and request.user.role != "DRIVER" %}
+              <li class="nav-item">
+                <a class="nav-link text-white-50 {% if 'reconciliation' in request.resolver_match.url_name %}active text-white fw-semibold{% endif %}" href="{% url 'orders:reconciliation-list' %}">
+                  <i class="bi bi-wallet2 me-1"></i>Đối soát COD
+                </a>
+              </li>
+              {% endif %}
               {% if request.user.is_authenticated and request.user.role == "ADMIN" or request.user.is_superuser %}
               <li class="nav-item">
                 <a class="nav-link text-white-50 {% if 'users' in request.resolver_match.namespace and 'list' in request.resolver_match.url_name %}active text-white fw-semibold{% endif %}" href="{% url 'users:user-list' %}">
@@ -120,6 +127,9 @@
                     <li><a class="dropdown-item" href="{% url 'users:profile' %}"><i class="bi bi-person-circle me-2 text-primary"></i>Hồ sơ cá nhân</a></li>
                     <li><a class="dropdown-item" href="{% url 'orders:order-list' %}"><i class="bi bi-box-seam me-2 text-info"></i>Đơn hàng của tôi</a></li>
                     <li><a class="dropdown-item" href="{% url 'orders:order-create' %}"><i class="bi bi-plus-circle me-2 text-success"></i>Tạo đơn mới</a></li>
+                    {% if request.user.role != "DRIVER" %}
+                    <li><a class="dropdown-item" href="{% url 'orders:reconciliation-list' %}"><i class="bi bi-wallet2 me-2 text-warning"></i>Đối soát COD</a></li>
+                    {% endif %}
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="{% url 'users:password-change' %}"><i class="bi bi-key me-2 text-warning"></i>Đổi mật khẩu</a></li>
                     <li>
@@ -189,6 +199,7 @@
           <div class="col-lg-2 col-md-6 col-6">
             <h6 class="text-white fw-semibold mb-3">Dịch vụ</h6>
             <ul class="list-unstyled small mb-0">
+              <li class="mb-2"><a href="{% url 'orders:reconciliation-list' %}" class="text-white-50 text-decoration-none hover-white">Đối soát COD</a></li>
               <li class="mb-2"><a href="{% url 'orders:fee-estimator' %}" class="text-white-50 text-decoration-none hover-white">Ước tính cước phí</a></li>
               <li class="mb-2"><a href="{% url 'orders:order-track' %}" class="text-white-50 text-decoration-none hover-white">Tra cứu bưu kiện</a></li>
               <li class="mb-2"><a href="{% url 'orders:order-create' %}" class="text-white-50 text-decoration-none hover-white">Tạo đơn gửi hàng</a></li>
