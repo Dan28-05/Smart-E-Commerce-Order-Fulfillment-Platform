@@ -278,6 +278,18 @@ def test_cod_reconciliation_views_flow(client, customer_user, admin_user):
     rec.refresh_from_db()
     assert rec.status == CODReconciliationStatus.CONFIRMED
 
+    # 7. Test Export CSV
+    export_url = reverse("orders:reconciliation-export-csv", kwargs={"reconciliation_id": rec.id})
+    resp_csv = client.get(export_url)
+    assert resp_csv.status_code == 200
+    assert resp_csv["Content-Type"].startswith("text/csv")
+    csv_text = resp_csv.content.decode("utf-8")
+    assert rec.code in csv_text
+    assert order.tracking_number in csv_text
+    assert "BẢNG KÊ ĐỐI SOÁT" in csv_text
+    assert "TỔNG CỘNG" in csv_text
+
+
 
 
 

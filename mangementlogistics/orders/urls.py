@@ -3,6 +3,7 @@ from django.urls import path
 
 from mangementlogistics.orders.views import (
     cod_reconciliation_detail_view,
+    cod_reconciliation_export_csv_view,
     cod_reconciliation_generate_view,
     cod_reconciliation_list_view,
     cod_reconciliation_process_view,
@@ -31,6 +32,7 @@ urlpatterns = [
     path("reconciliations/", cod_reconciliation_list_view, name="reconciliation-list"),
     path("reconciliations/create/", cod_reconciliation_generate_view, name="reconciliation-create"),
     path("reconciliations/<int:reconciliation_id>/", cod_reconciliation_detail_view, name="reconciliation-detail"),
+    path("reconciliations/<int:reconciliation_id>/export/csv/", cod_reconciliation_export_csv_view, name="reconciliation-export-csv"),
     path("reconciliations/<int:reconciliation_id>/process/", cod_reconciliation_process_view, name="reconciliation-process"),
     path("<int:order_id>/", order_detail_view, name="order-detail"),
     path("<int:order_id>/edit/", order_update_view, name="order-update"),

@@ -1,51 +1,183 @@
 {% extends "base.html" %}
 
-{% block title %}Danh sách Đối soát COD - MangementLogistics{% endblock title %}
+{% block title %}Quản lý Đối soát Tiền thu hộ COD - MangementLogistics{% endblock title %}
 
 {% block content %}
 <div class="py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <!-- Tiêu đề trang & Nút hành động -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
-      <h2 class="fw-bold mb-1">Quản lý Đối soát COD</h2>
-      <p class="text-muted mb-0">Theo dõi dòng tiền thu hộ COD và quyết toán hoàn tiền định kỳ.</p>
+      <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-1 rounded-pill fw-semibold mb-2">
+        <i class="bi bi-wallet2 me-1"></i>Tài chính & Dòng tiền
+      </span>
+      <h2 class="h3 fw-bold mb-1">Quản lý Đối soát COD & Quyết toán Dòng tiền</h2>
+      <p class="text-muted small mb-0">Theo dõi dòng tiền thu hộ COD từ người nhận, khấu trừ cước vận chuyển và thanh toán định kỳ.</p>
     </div>
-    <div>
-      <a href="{% url 'orders:reconciliation-create' %}" class="btn btn-primary rounded-pill">
+    <div class="d-flex gap-2">
+      <a href="{% url 'orders:reconciliation-create' %}" class="btn btn-primary rounded-pill px-4 shadow-sm fw-semibold">
         <i class="bi bi-plus-circle me-1"></i>Lập kỳ đối soát mới
       </a>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+  <!-- Thẻ chỉ số tài chính KPI -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Chờ quyết toán</span>
+            <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-2 d-inline-flex">
+              <i class="bi bi-hourglass-split fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-dark">{{ summary_stats.pending_payout|floatformat:0 }} đ</h3>
+          <span class="small text-muted">Đang chờ xử lý / chi trả</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Đã quyết toán</span>
+            <div class="rounded-3 bg-success bg-opacity-10 text-success p-2 d-inline-flex">
+              <i class="bi bi-cash-stack fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-success">{{ summary_stats.paid_payout|floatformat:0 }} đ</h3>
+          <span class="small text-muted">Đã chuyển khoản hoàn tất</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">COD chưa lập bảng kê</span>
+            <div class="rounded-3 bg-info bg-opacity-10 text-info p-2 d-inline-flex">
+              <i class="bi bi-box-seam fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-dark">{{ summary_stats.unreconciled_orders_count }} đơn</h3>
+          <span class="small text-muted">Trị giá: {{ summary_stats.unreconciled_cod_total|floatformat:0 }} đ</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Tổng kỳ đối soát</span>
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2 d-inline-flex">
+              <i class="bi bi-receipt-cutoff fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-dark">{{ summary_stats.total_statements }}</h3>
+          <span class="small text-muted">Bảng kê đối soát được lập</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thanh lọc theo trạng thái -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+    <div class="card-body p-3 d-flex flex-wrap gap-2 align-items-center">
+      <span class="text-muted small fw-semibold me-2"><i class="bi bi-funnel me-1"></i>Lọc trạng thái:</span>
+      <a href="{% url 'orders:reconciliation-list' %}"
+         class="btn btn-sm rounded-pill {% if not selected_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+        Tất cả ({{ reconciliations.count }})
+      </a>
+      {% for code, label in status_choices %}
+        <a href="{% url 'orders:reconciliation-list' %}?status={{ code }}"
+           class="btn btn-sm rounded-pill {% if selected_status == code %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+          {{ label }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Bảng danh sách kỳ đối soát -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
     <div class="table-responsive">
-      <table class="table align-middle">
-        <thead>
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small text-uppercase">
           <tr>
-            <th>Mã đối soát</th>
+            <th class="ps-4">Mã bảng kê</th>
             <th>Khách hàng</th>
-            <th>Số đơn</th>
-            <th>Tiền COD</th>
-            <th>Cước trừ</th>
-            <th>Thực nhận</th>
-            <th>Trạng thái</th>
-            <th>Thao tác</th>
+            <th class="text-center">Số đơn</th>
+            <th class="text-end">Tiền thu hộ COD</th>
+            <th class="text-end">Khấu trừ cước</th>
+            <th class="text-end">Số tiền thực nhận</th>
+            <th class="text-center">Trạng thái</th>
+            <th>Ngày lập</th>
+            <th class="text-end pe-4">Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {% for item in reconciliations %}
             <tr>
-              <td><a href="{% url 'orders:reconciliation-detail' item.id %}" class="fw-bold text-decoration-none">{{ item.code }}</a></td>
-              <td>{{ item.customer.name|default:item.customer.email }}</td>
-              <td>{{ item.total_orders_count }}</td>
-              <td class="text-success fw-semibold">{{ item.total_cod_amount|floatformat:0 }} đ</td>
-              <td class="text-danger">{{ item.total_shipping_fees|floatformat:0 }} đ</td>
-              <td class="text-primary fw-bold">{{ item.net_payout_amount|floatformat:0 }} đ</td>
-              <td><span class="badge bg-secondary">{{ item.get_status_display }}</span></td>
-              <td><a href="{% url 'orders:reconciliation-detail' item.id %}" class="btn btn-sm btn-outline-primary">Chi tiết</a></td>
+              <td class="ps-4">
+                <a href="{% url 'orders:reconciliation-detail' item.id %}" class="fw-bold text-primary text-decoration-none">
+                  {{ item.code }}
+                </a>
+              </td>
+              <td>
+                <div class="fw-semibold text-dark">{{ item.customer.name|default:item.customer.email }}</div>
+                <small class="text-muted">{{ item.customer.email }}</small>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-light text-dark border">{{ item.total_orders_count }}</span>
+              </td>
+              <td class="text-end fw-semibold text-success">
+                {{ item.total_cod_amount|floatformat:0 }} đ
+              </td>
+              <td class="text-end text-danger">
+                -{{ item.total_shipping_fees|floatformat:0 }} đ
+              </td>
+              <td class="text-end fw-bold text-primary fs-6">
+                {{ item.net_payout_amount|floatformat:0 }} đ
+              </td>
+              <td class="text-center">
+                {% if item.status == "PENDING" %}
+                  <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Chờ đối soát</span>
+                {% elif item.status == "CONFIRMED" %}
+                  <span class="badge bg-info text-dark"><i class="bi bi-check-circle me-1"></i>Đã xác nhận</span>
+                {% elif item.status == "PAID" %}
+                  <span class="badge bg-success"><i class="bi bi-cash-coin me-1"></i>Đã quyết toán</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ item.get_status_display }}</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {{ item.created_at|date:"d/m/Y H:i" }}
+              </td>
+              <td class="text-end pe-4">
+                <div class="btn-group btn-group-sm">
+                  <a href="{% url 'orders:reconciliation-detail' item.id %}" class="btn btn-outline-primary" title="Xem chi tiết">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{% url 'orders:reconciliation-export-csv' item.id %}" class="btn btn-outline-secondary" title="Xuất CSV">
+                    <i class="bi bi-download"></i>
+                  </a>
+                </div>
+              </td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="8" class="text-center py-4 text-muted">Chưa có kỳ đối soát COD nào được ghi nhận.</td>
+              <td colspan="9" class="text-center py-5 text-muted">
+                <div class="py-3">
+                  <i class="bi bi-receipt text-secondary fs-1 d-block mb-2"></i>
+                  <h6 class="fw-bold mb-1">Chưa có kỳ đối soát nào</h6>
+                  <p class="small text-muted mb-3">Hiện chưa có bảng kê đối soát COD nào phù hợp với bộ lọc hiện tại.</p>
+                  <a href="{% url 'orders:reconciliation-create' %}" class="btn btn-primary btn-sm rounded-pill px-3">
+                    <i class="bi bi-plus-circle me-1"></i>Lập kỳ đối soát ngay
+                  </a>
+                </div>
+              </td>
             </tr>
           {% endfor %}
         </tbody>

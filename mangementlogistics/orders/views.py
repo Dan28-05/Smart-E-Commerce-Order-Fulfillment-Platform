@@ -619,3 +619,79 @@ def cod_reconciliation_process_view(request, reconciliation_id: int):
     return redirect("orders:reconciliation-detail", reconciliation_id=reconciliation.id)
 
 
+@login_required
+def cod_reconciliation_export_csv_view(request, reconciliation_id: int):
+    """
+    Exports all items in a COD reconciliation statement to a formatted CSV file.
+    """
+    reconciliation = cod_reconciliation_get_by_id(
+        reconciliation_id=reconciliation_id,
+        user=request.user,
+    )
+    if not reconciliation:
+        messages.error(request, "Không tìm thấy bảng kê đối soát.")
+        return redirect("orders:reconciliation-list")
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="bang-ke-doi-soat-{reconciliation.code}.csv"'
+
+    # Write UTF-8 BOM for Microsoft Excel compatibility
+    response.write("\ufeff")
+
+    writer = csv.writer(response)
+    writer.writerow(["BẢNG KÊ ĐỐI SOÁT & QUYẾT TOÁN TIỀN THU HỘ COD"])
+    writer.writerow(["Mã bảng kê", reconciliation.code])
+    writer.writerow(["Khách hàng", reconciliation.customer.name or reconciliation.customer.email])
+    writer.writerow(["Email", reconciliation.customer.email])
+    writer.writerow(["Trạng thái", reconciliation.get_status_display()])
+    writer.writerow(["Ngày tạo", reconciliation.created_at.strftime("%d/%m/%Y %H:%M")])
+    writer.writerow([])
+
+    writer.writerow([
+        "STT",
+        "Mã vận đơn",
+        "Tên người nhận",
+        "Số điện thoại",
+        "Địa chỉ nhận hàng",
+        "Ngày giao thành công",
+        "Tiền thu hộ COD (VNĐ)",
+        "Cước phí vận chuyển (VNĐ)",
+        "Số tiền thực nhận (VNĐ)",
+        "Trạng thái thanh toán",
+    ])
+
+    orders = reconciliation.orders.all().order_by("-delivered_at", "-created_at")
+    for idx, order in enumerate(orders, start=1):
+        delivered_str = order.delivered_at.strftime("%d/%m/%Y %H:%M") if order.delivered_at else "-"
+        net_order = order.cod_amount - order.shipping_fee
+        writer.writerow([
+            idx,
+            order.tracking_number,
+            order.receiver_name,
+            order.receiver_phone,
+            order.receiver_address,
+            delivered_str,
+            int(order.cod_amount),
+            int(order.shipping_fee),
+            int(net_order),
+            order.get_payment_status_display(),
+        ])
+
+    writer.writerow([])
+    writer.writerow([
+        "TỔNG CỘNG",
+        f"{reconciliation.total_orders_count} đơn hàng",
+        "",
+        "",
+        "",
+        "",
+        int(reconciliation.total_cod_amount),
+        int(reconciliation.total_shipping_fees),
+        int(reconciliation.net_payout_amount),
+        reconciliation.get_status_display(),
+    ])
+
+    return response
+
+
+

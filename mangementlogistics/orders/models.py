@@ -135,6 +135,11 @@ class Order(models.Model):
         """Total receivable amount (COD collection plus shipping fee)."""
         return self.cod_amount + self.shipping_fee
 
+    @property
+    def net_cod_amount(self):
+        """Net receivable COD after deducting shipping fee."""
+        return self.cod_amount - self.shipping_fee
+
     def can_be_cancelled(self) -> bool:
         """Check whether the order can be cancelled based on current lifecycle status."""
         return self.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]
