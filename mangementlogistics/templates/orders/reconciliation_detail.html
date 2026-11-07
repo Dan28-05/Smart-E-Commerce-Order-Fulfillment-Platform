@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Bảng kê đối soát {{ reconciliation.code }} - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1">Bảng kê đối soát #{{ reconciliation.code }}</h2>
+      <p class="text-muted mb-0">Khách hàng: <strong>{{ reconciliation.customer.email }}</strong> | Tạo ngày: {{ reconciliation.created_at|date:"d/m/Y H:i" }}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'orders:reconciliation-list' %}" class="btn btn-outline-secondary rounded-pill">
+        <i class="bi bi-arrow-left me-1"></i>Quay lại danh sách
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <small class="text-muted">Tổng số đơn hàng</small>
+        <span class="fs-4 fw-bold text-dark">{{ reconciliation.total_orders_count }}</span>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <small class="text-muted">Tổng tiền thu hộ COD</small>
+        <span class="fs-4 fw-bold text-success">{{ reconciliation.total_cod_amount|floatformat:0 }} đ</span>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <small class="text-muted">Khấu trừ cước vận chuyển</small>
+        <span class="fs-4 fw-bold text-danger">-{{ reconciliation.total_shipping_fees|floatformat:0 }} đ</span>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <small class="text-muted">Số tiền thực nhận</small>
+        <span class="fs-4 fw-bold text-primary">{{ reconciliation.net_payout_amount|floatformat:0 }} đ</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+    <h5 class="fw-bold mb-3">Danh sách bưu kiện trong kỳ đối soát</h5>
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th>Mã vận đơn</th>
+            <th>Người nhận</th>
+            <th>Ngày giao</th>
+            <th>Tiền thu hộ COD</th>
+            <th>Cước phí</th>
+            <th>Thanh toán</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+            <tr>
+              <td><a href="{% url 'orders:order-detail' order.id %}" class="fw-bold text-decoration-none">{{ order.tracking_number }}</a></td>
+              <td>{{ order.receiver_name }} ({{ order.receiver_phone }})</td>
+              <td>{{ order.delivered_at|date:"d/m/Y H:i"|default:"-" }}</td>
+              <td class="text-success fw-semibold">{{ order.cod_amount|floatformat:0 }} đ</td>
+              <td class="text-danger">{{ order.shipping_fee|floatformat:0 }} đ</td>
+              <td><span class="badge bg-info text-dark">{{ order.get_payment_status_display }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock content %}

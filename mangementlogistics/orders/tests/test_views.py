@@ -5,8 +5,15 @@ from django.test import Client
 from django.urls import reverse
 import pytest
 
-from mangementlogistics.orders.constants import OrderStatus
-from mangementlogistics.orders.services import order_create
+from mangementlogistics.orders.constants import (
+    CODReconciliationStatus,
+    OrderPaymentMethod,
+    OrderStatus,
+)
+from mangementlogistics.orders.services import (
+    cod_reconciliation_generate,
+    order_create,
+)
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
 
@@ -195,6 +202,82 @@ def test_order_create_view_prefills_from_get_params(client, customer_user):
     assert 'value="3.5"' in content
     assert 'value="45000"' in content
     assert 'value="200000"' in content
+
+
+@pytest.fixture
+def admin_user():
+    return User.objects.create_superuser(
+        username="admin_view@example.com",
+        email="admin_view@example.com",
+        password="AdminPassword123!",
+        name="Admin View User",
+        role=UserRole.ADMIN,
+    )
+
+
+def test_cod_reconciliation_views_flow(client, customer_user, admin_user):
+    """
+    Test viewing list, generating statement, viewing detail, and processing by admin.
+    """
+    # 1. Unauthenticated redirects to login
+    list_url = reverse("orders:reconciliation-list")
+    resp = client.get(list_url)
+    assert resp.status_code == 302
+    assert "/users/login/" in resp.url
+
+    # 2. Authenticated GET list view
+    client.force_login(customer_user)
+    resp_auth = client.get(list_url)
+    assert resp_auth.status_code == 200
+    assert "Quản lý Đối soát COD" in resp_auth.content.decode("utf-8")
+
+    # 3. Create a delivered COD order
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender Shop",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver Cust",
+        receiver_phone="0922",
+        receiver_address="HCM",
+        cod_amount=Decimal("800000.00"),
+        shipping_fee=Decimal("40000.00"),
+        payment_method=OrderPaymentMethod.COD,
+    )
+    order.status = OrderStatus.DELIVERED
+    order.save()
+
+    # 4. GET generate form
+    create_url = reverse("orders:reconciliation-create")
+    resp_create_get = client.get(create_url)
+    assert resp_create_get.status_code == 200
+    assert "Lập kỳ đối soát COD mới" in resp_create_get.content.decode("utf-8")
+
+    # 5. POST generate form
+    resp_create_post = client.post(create_url, data={"notes": "Tuần 1"}, follow=True)
+    assert resp_create_post.status_code == 200
+    content = resp_create_post.content.decode("utf-8")
+    assert "Bảng kê đối soát" in content
+    assert "800.000" in content or "800000" in content
+
+    # Get created reconciliation
+    order.refresh_from_db()
+    rec = order.reconciliation
+    assert rec is not None
+    assert rec.net_payout_amount == Decimal("760000.00")
+
+    # 6. Admin processes (confirms) the statement
+    client.force_login(admin_user)
+    process_url = reverse("orders:reconciliation-process", kwargs={"reconciliation_id": rec.id})
+    resp_process = client.post(
+        process_url,
+        data={"action": "CONFIRM", "notes": "Approved by accounting"},
+        follow=True,
+    )
+    assert resp_process.status_code == 200
+    rec.refresh_from_db()
+    assert rec.status == CODReconciliationStatus.CONFIRMED
+
 
 
 

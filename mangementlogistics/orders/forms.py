@@ -208,3 +208,57 @@ class ShippingFeeEstimatorForm(forms.Form):
         widget=forms.NumberInput(attrs={"class": "form-control", "step": "10000", "placeholder": "0", "id": "id_cod_amount"}),
     )
 
+
+class CODReconciliationGenerateForm(forms.Form):
+    """
+    Form to trigger generation of a new COD reconciliation statement.
+    """
+    customer = forms.ModelChoiceField(
+        queryset=User.objects.filter(is_active=True),
+        required=False,
+        label="Khách hàng / Chủ Shop",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="-- Chọn khách hàng --",
+    )
+    notes = forms.CharField(
+        required=False,
+        label="Ghi chú kỳ đối soát",
+        widget=forms.Textarea(
+            attrs={"class": "form-control", "rows": 3, "placeholder": "Ví dụ: Đối soát định kỳ tuần 1 tháng 11..."}
+        ),
+    )
+
+    def __init__(self, *args, user: User | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        is_admin = user and (user.is_superuser or getattr(user, "role", None) == UserRole.ADMIN)
+        if not is_admin:
+            self.fields.pop("customer", None)
+        else:
+            self.fields["customer"].required = True
+            self.fields["customer"].queryset = User.objects.filter(
+                role=UserRole.CUSTOMER, is_active=True
+            ).order_by("name", "email")
+
+
+class CODReconciliationProcessForm(forms.Form):
+    """
+    Form for administrators to confirm or mark paid on a reconciliation statement.
+    """
+    ACTION_CHOICES = [
+        ("CONFIRM", "Xác nhận đối soát (Chuyển sang Đã xác nhận)"),
+        ("MARK_PAID", "Quyết toán / Chuyển khoản (Chuyển sang Đã thanh toán)"),
+    ]
+    action = forms.ChoiceField(
+        choices=ACTION_CHOICES,
+        label="Hành động xử lý",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    notes = forms.CharField(
+        required=False,
+        label="Ghi chú xử lý / Mã giao dịch ngân hàng",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Ví dụ: Mã GD VCB 987654321..."}
+        ),
+    )
+
+

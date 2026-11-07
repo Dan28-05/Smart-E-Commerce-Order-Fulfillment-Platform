@@ -2,16 +2,23 @@
 import csv
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from mangementlogistics.orders.constants import VIETNAM_PROVINCES
+from mangementlogistics.orders.constants import (
+    CODReconciliationStatus,
+    VIETNAM_PROVINCES,
+)
 from mangementlogistics.orders.exceptions import (
+    CODReconciliationError,
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
 )
 from mangementlogistics.orders.forms import (
+    CODReconciliationGenerateForm,
+    CODReconciliationProcessForm,
     OrderCancelForm,
     OrderCheckpointForm,
     OrderCreateForm,
@@ -19,8 +26,12 @@ from mangementlogistics.orders.forms import (
     OrderUpdateForm,
     ShippingFeeEstimatorForm,
 )
-from mangementlogistics.orders.models import Order
+from mangementlogistics.orders.models import CODReconciliation, Order
 from mangementlogistics.orders.selectors import (
+    cod_reconciliation_get_by_id,
+    cod_reconciliation_get_eligible_orders,
+    cod_reconciliation_get_summary_stats,
+    cod_reconciliation_list,
     order_get_by_id,
     order_get_by_tracking_number,
     order_get_tracking_history,
@@ -28,6 +39,9 @@ from mangementlogistics.orders.selectors import (
 )
 from mangementlogistics.orders.services import (
     calculate_shipping_rates,
+    cod_reconciliation_confirm,
+    cod_reconciliation_generate,
+    cod_reconciliation_mark_paid,
     order_add_checkpoint,
     order_cancel,
     order_create,
@@ -461,4 +475,147 @@ def order_fee_estimator_view(request):
             "result": result,
         },
     )
+
+
+@login_required
+def cod_reconciliation_list_view(request):
+    """
+    Renders list of COD reconciliation statements with status filtering and financial summary KPIs.
+    """
+    status_filter = request.GET.get("status") or None
+    reconciliations = cod_reconciliation_list(
+        user=request.user,
+        status=status_filter,
+    )
+    summary_stats = cod_reconciliation_get_summary_stats(user=request.user)
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+
+    return render(
+        request,
+        "orders/reconciliation_list.html",
+        {
+            "reconciliations": reconciliations,
+            "selected_status": status_filter,
+            "summary_stats": summary_stats,
+            "is_admin": is_admin,
+            "status_choices": CODReconciliationStatus.choices,
+        },
+    )
+
+
+@login_required
+def cod_reconciliation_detail_view(request, reconciliation_id: int):
+    """
+    Renders detailed statement breakdown including orders, financial totals, and processing actions.
+    """
+    reconciliation = cod_reconciliation_get_by_id(
+        reconciliation_id=reconciliation_id,
+        user=request.user,
+    )
+    if not reconciliation:
+        messages.error(request, "Không tìm thấy bảng kê đối soát hoặc bạn không có quyền truy cập.")
+        return redirect("orders:reconciliation-list")
+
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+    process_form = CODReconciliationProcessForm() if is_admin else None
+    orders = reconciliation.orders.all().order_by("-delivered_at", "-created_at")
+
+    return render(
+        request,
+        "orders/reconciliation_detail.html",
+        {
+            "reconciliation": reconciliation,
+            "orders": orders,
+            "is_admin": is_admin,
+            "process_form": process_form,
+        },
+    )
+
+
+@login_required
+def cod_reconciliation_generate_view(request):
+    """
+    Processes creation of a new COD reconciliation statement for delivered orders.
+    """
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+
+    if request.method == "POST":
+        form = CODReconciliationGenerateForm(request.POST, user=request.user)
+        if form.is_valid():
+            target_customer = form.cleaned_data.get("customer") if is_admin else request.user
+            notes = form.cleaned_data.get("notes", "")
+
+            try:
+                rec = cod_reconciliation_generate(
+                    customer=target_customer,
+                    actor=request.user,
+                    notes=notes,
+                )
+                messages.success(
+                    request,
+                    f"Tạo kỳ đối soát {rec.code} thành công với {rec.total_orders_count} đơn hàng! Số tiền quyết toán: {rec.net_payout_amount:,.0f} đ",
+                )
+                return redirect("orders:reconciliation-detail", reconciliation_id=rec.id)
+            except (CODReconciliationError, OrderPermissionDeniedError) as exc:
+                messages.error(request, str(exc))
+    else:
+        form = CODReconciliationGenerateForm(user=request.user)
+
+    target_customer = request.user
+    eligible_orders = cod_reconciliation_get_eligible_orders(customer=target_customer)
+
+    return render(
+        request,
+        "orders/reconciliation_form.html",
+        {
+            "form": form,
+            "is_admin": is_admin,
+            "eligible_orders": eligible_orders,
+        },
+    )
+
+
+@login_required
+def cod_reconciliation_process_view(request, reconciliation_id: int):
+    """
+    Processes administrator confirmation or payment transition on a reconciliation statement.
+    """
+    if request.method != "POST":
+        return redirect("orders:reconciliation-detail", reconciliation_id=reconciliation_id)
+
+    reconciliation = cod_reconciliation_get_by_id(
+        reconciliation_id=reconciliation_id,
+        user=request.user,
+    )
+    if not reconciliation:
+        messages.error(request, "Không tìm thấy bảng kê đối soát.")
+        return redirect("orders:reconciliation-list")
+
+    form = CODReconciliationProcessForm(request.POST)
+    if form.is_valid():
+        action = form.cleaned_data["action"]
+        notes = form.cleaned_data.get("notes", "")
+
+        try:
+            if action == "CONFIRM":
+                cod_reconciliation_confirm(
+                    reconciliation=reconciliation,
+                    actor=request.user,
+                    notes=notes,
+                )
+                messages.success(request, f"Đã xác nhận bảng kê đối soát {reconciliation.code} thành công!")
+            elif action == "MARK_PAID":
+                cod_reconciliation_mark_paid(
+                    reconciliation=reconciliation,
+                    actor=request.user,
+                    notes=notes,
+                )
+                messages.success(request, f"Đã chuyển trạng thái bảng kê {reconciliation.code} sang Đã quyết toán thành công!")
+        except (CODReconciliationError, OrderPermissionDeniedError) as exc:
+            messages.error(request, str(exc))
+    else:
+        messages.error(request, "Dữ liệu xử lý không hợp lệ.")
+
+    return redirect("orders:reconciliation-detail", reconciliation_id=reconciliation.id)
+
 

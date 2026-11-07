@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Danh sách Đối soát COD - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1">Quản lý Đối soát COD</h2>
+      <p class="text-muted mb-0">Theo dõi dòng tiền thu hộ COD và quyết toán hoàn tiền định kỳ.</p>
+    </div>
+    <div>
+      <a href="{% url 'orders:reconciliation-create' %}" class="btn btn-primary rounded-pill">
+        <i class="bi bi-plus-circle me-1"></i>Lập kỳ đối soát mới
+      </a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th>Mã đối soát</th>
+            <th>Khách hàng</th>
+            <th>Số đơn</th>
+            <th>Tiền COD</th>
+            <th>Cước trừ</th>
+            <th>Thực nhận</th>
+            <th>Trạng thái</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in reconciliations %}
+            <tr>
+              <td><a href="{% url 'orders:reconciliation-detail' item.id %}" class="fw-bold text-decoration-none">{{ item.code }}</a></td>
+              <td>{{ item.customer.name|default:item.customer.email }}</td>
+              <td>{{ item.total_orders_count }}</td>
+              <td class="text-success fw-semibold">{{ item.total_cod_amount|floatformat:0 }} đ</td>
+              <td class="text-danger">{{ item.total_shipping_fees|floatformat:0 }} đ</td>
+              <td class="text-primary fw-bold">{{ item.net_payout_amount|floatformat:0 }} đ</td>
+              <td><span class="badge bg-secondary">{{ item.get_status_display }}</span></td>
+              <td><a href="{% url 'orders:reconciliation-detail' item.id %}" class="btn btn-sm btn-outline-primary">Chi tiết</a></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-4 text-muted">Chưa có kỳ đối soát COD nào được ghi nhận.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock content %}
