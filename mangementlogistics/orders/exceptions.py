@@ -19,3 +19,9 @@ class OrderPermissionDeniedError(Exception):
 class DriverAssignmentError(Exception):
     """Raised when an invalid driver is assigned."""
     pass
+
+
+class CODReconciliationError(Exception):
+    """Raised when COD reconciliation processing fails or validation is violated."""
+    pass
+

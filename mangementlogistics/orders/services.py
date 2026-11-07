@@ -2,9 +2,11 @@
 from decimal import Decimal
 import math
 
+from django.db import transaction
 from django.utils import timezone
 
 from mangementlogistics.orders.constants import (
+    CODReconciliationStatus,
     OrderPaymentMethod,
     OrderPaymentStatus,
     OrderStatus,
@@ -14,11 +16,16 @@ from mangementlogistics.orders.constants import (
     REGION_SOUTH,
 )
 from mangementlogistics.orders.exceptions import (
+    CODReconciliationError,
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
 )
-from mangementlogistics.orders.models import Order, OrderTrackingHistory
+from mangementlogistics.orders.models import (
+    CODReconciliation,
+    Order,
+    OrderTrackingHistory,
+)
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
 
@@ -441,4 +448,118 @@ def calculate_shipping_rates(
         "insurance_fee": insurance_fee,
         "plans": plans,
     }
+
+
+def cod_reconciliation_generate(
+    *,
+    customer: User,
+    actor: User,
+    notes: str = "",
+) -> CODReconciliation:
+    """
+    Generates a COD financial reconciliation statement for delivered, unreconciled COD orders.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_self = actor.id == customer.id
+
+    if not is_admin and not is_self:
+        raise OrderPermissionDeniedError("Bạn không có quyền lập kỳ đối soát cho khách hàng này.")
+
+    with transaction.atomic():
+        eligible_orders = list(
+            Order.objects.select_for_update().filter(
+                customer=customer,
+                status=OrderStatus.DELIVERED,
+                payment_method=OrderPaymentMethod.COD,
+                reconciliation__isnull=True,
+            )
+        )
+
+        if not eligible_orders:
+            raise CODReconciliationError(
+                "Không có đơn hàng COD giao thành công nào đang chờ đối soát cho tài khoản này."
+            )
+
+        total_orders_count = len(eligible_orders)
+        total_cod = sum(o.cod_amount for o in eligible_orders)
+        total_shipping = sum(o.shipping_fee for o in eligible_orders)
+        net_payout = total_cod - total_shipping
+
+        reconciliation = CODReconciliation.objects.create(
+            customer=customer,
+            total_orders_count=total_orders_count,
+            total_cod_amount=total_cod,
+            total_shipping_fees=total_shipping,
+            net_payout_amount=net_payout,
+            status=CODReconciliationStatus.PENDING,
+            notes=notes.strip(),
+            processed_by=actor if is_admin else None,
+        )
+
+        order_ids = [o.id for o in eligible_orders]
+        Order.objects.filter(id__in=order_ids).update(reconciliation=reconciliation)
+
+        return reconciliation
+
+
+def cod_reconciliation_confirm(
+    *,
+    reconciliation: CODReconciliation,
+    actor: User,
+    notes: str = "",
+) -> CODReconciliation:
+    """
+    Confirms the reconciliation statement by an admin, locking the figures for payment.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    if not is_admin:
+        raise OrderPermissionDeniedError("Chỉ Quản trị viên mới có quyền xác nhận bảng kê đối soát COD.")
+
+    if reconciliation.status != CODReconciliationStatus.PENDING:
+        raise CODReconciliationError(
+            f"Không thể xác nhận bảng kê đang ở trạng thái '{reconciliation.get_status_display()}'."
+        )
+
+    reconciliation.status = CODReconciliationStatus.CONFIRMED
+    reconciliation.confirmed_at = timezone.now()
+    reconciliation.processed_by = actor
+    if notes:
+        existing = f"{reconciliation.notes}\n" if reconciliation.notes else ""
+        reconciliation.notes = f"{existing}[Xác nhận]: {notes}".strip()
+
+    reconciliation.save()
+    return reconciliation
+
+
+def cod_reconciliation_mark_paid(
+    *,
+    reconciliation: CODReconciliation,
+    actor: User,
+    notes: str = "",
+) -> CODReconciliation:
+    """
+    Marks the reconciliation payout as transferred/paid, completing payment on all attached orders.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    if not is_admin:
+        raise OrderPermissionDeniedError("Chỉ Quản trị viên mới có quyền thanh toán quyết toán COD.")
+
+    if reconciliation.status == CODReconciliationStatus.PAID:
+        raise CODReconciliationError("Bảng kê đối soát này đã được thanh toán trước đó.")
+
+    with transaction.atomic():
+        reconciliation.status = CODReconciliationStatus.PAID
+        reconciliation.paid_at = timezone.now()
+        reconciliation.processed_by = actor
+        if notes:
+            existing = f"{reconciliation.notes}\n" if reconciliation.notes else ""
+            reconciliation.notes = f"{existing}[Thanh toán]: {notes}".strip()
+
+        reconciliation.save()
+
+        # Update all attached orders to PAID
+        reconciliation.orders.update(payment_status=OrderPaymentStatus.PAID)
+
+        return reconciliation
+
 

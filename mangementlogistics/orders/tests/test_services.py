@@ -10,13 +10,21 @@ from mangementlogistics.orders.constants import (
     OrderStatus,
 )
 from mangementlogistics.orders.exceptions import (
+    CODReconciliationError,
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
 )
 from mangementlogistics.orders.models import CODReconciliation, Order
+from mangementlogistics.orders.selectors import (
+    cod_reconciliation_get_summary_stats,
+    cod_reconciliation_list,
+)
 from mangementlogistics.orders.services import (
     calculate_shipping_rates,
+    cod_reconciliation_confirm,
+    cod_reconciliation_generate,
+    cod_reconciliation_mark_paid,
     order_add_checkpoint,
     order_cancel,
     order_create,
@@ -365,6 +373,103 @@ def test_cod_reconciliation_model_defaults(customer_user):
     assert rec.total_orders_count == 3
     assert rec.net_payout_amount == Decimal("1410000.00")
     assert str(rec).startswith(rec.code)
+
+
+def test_cod_reconciliation_generate_no_orders_raises_error(customer_user):
+    """
+    Ensure attempting to generate reconciliation with no delivered COD orders raises error.
+    """
+    with pytest.raises(CODReconciliationError, match="Không có đơn hàng COD"):
+        cod_reconciliation_generate(customer=customer_user, actor=customer_user)
+
+
+def test_cod_reconciliation_full_lifecycle_and_selectors(customer_user, admin_user):
+    """
+    Test complete lifecycle: generate -> confirm -> mark_paid, and verify selector calculations.
+    """
+    # Create delivered COD orders
+    o1 = order_create(
+        customer=customer_user,
+        sender_name="Sender 1",
+        sender_phone="0901",
+        sender_address="Hanoi",
+        receiver_name="Receiver 1",
+        receiver_phone="0902",
+        receiver_address="HCM",
+        cod_amount=Decimal("500000.00"),
+        shipping_fee=Decimal("35000.00"),
+        payment_method=OrderPaymentMethod.COD,
+    )
+    o1.status = OrderStatus.DELIVERED
+    o1.save()
+
+    o2 = order_create(
+        customer=customer_user,
+        sender_name="Sender 2",
+        sender_phone="0903",
+        sender_address="Hanoi",
+        receiver_name="Receiver 2",
+        receiver_phone="0904",
+        receiver_address="Da Nang",
+        cod_amount=Decimal("700000.00"),
+        shipping_fee=Decimal("45000.00"),
+        payment_method=OrderPaymentMethod.COD,
+    )
+    o2.status = OrderStatus.DELIVERED
+    o2.save()
+
+    # 1. Summary stats before reconciliation
+    stats = cod_reconciliation_get_summary_stats(user=customer_user)
+    assert stats["unreconciled_orders_count"] == 2
+    assert stats["unreconciled_cod_total"] == Decimal("1200000.00")
+
+    # 2. Generate statement
+    rec = cod_reconciliation_generate(
+        customer=customer_user,
+        actor=customer_user,
+        notes="Quyết toán đầu tháng",
+    )
+    assert rec.total_orders_count == 2
+    assert rec.total_cod_amount == Decimal("1200000.00")
+    assert rec.total_shipping_fees == Decimal("80000.00")
+    assert rec.net_payout_amount == Decimal("1120000.00")
+    assert rec.status == CODReconciliationStatus.PENDING
+
+    # Orders should now have reconciliation FK
+    o1.refresh_from_db()
+    o2.refresh_from_db()
+    assert o1.reconciliation_id == rec.id
+    assert o2.reconciliation_id == rec.id
+
+    # 3. Confirm statement
+    rec_confirmed = cod_reconciliation_confirm(
+        reconciliation=rec,
+        actor=admin_user,
+        notes="Số liệu chuẩn xác",
+    )
+    assert rec_confirmed.status == CODReconciliationStatus.CONFIRMED
+    assert rec_confirmed.confirmed_at is not None
+
+    # 4. Mark paid
+    rec_paid = cod_reconciliation_mark_paid(
+        reconciliation=rec_confirmed,
+        actor=admin_user,
+        notes="Chuyển khoản VCB thành công",
+    )
+    assert rec_paid.status == CODReconciliationStatus.PAID
+    assert rec_paid.paid_at is not None
+
+    # Orders payment_status should now be PAID
+    o1.refresh_from_db()
+    o2.refresh_from_db()
+    assert o1.payment_status == OrderPaymentStatus.PAID
+    assert o2.payment_status == OrderPaymentStatus.PAID
+
+    # 5. Check selector list
+    rec_list = cod_reconciliation_list(user=customer_user)
+    assert rec_list.count() == 1
+    assert rec_list.first().id == rec.id
+
 
 
 
