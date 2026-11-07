@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from mangementlogistics.orders.constants import (
+    CODReconciliationStatus,
     OrderPaymentMethod,
     OrderPaymentStatus,
     OrderStatus,
@@ -13,6 +14,7 @@ from mangementlogistics.orders.exceptions import (
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
 )
+from mangementlogistics.orders.models import CODReconciliation, Order
 from mangementlogistics.orders.services import (
     calculate_shipping_rates,
     order_add_checkpoint,
@@ -345,5 +347,24 @@ def test_calculate_shipping_rates_insurance_cod():
     standard_plan = next(p for p in res["plans"] if p["code"] == "STANDARD")
     assert standard_plan["insurance_fee"] == 10000
     assert standard_plan["total_fee"] == standard_plan["shipping_fee"] + 10000
+
+
+def test_cod_reconciliation_model_defaults(customer_user):
+    """
+    Test CODReconciliation model creation, generated code, and initial status.
+    """
+    rec = CODReconciliation.objects.create(
+        customer=customer_user,
+        total_orders_count=3,
+        total_cod_amount=Decimal("1500000.00"),
+        total_shipping_fees=Decimal("90000.00"),
+        net_payout_amount=Decimal("1410000.00"),
+    )
+    assert rec.code.startswith("REC-")
+    assert rec.status == CODReconciliationStatus.PENDING
+    assert rec.total_orders_count == 3
+    assert rec.net_payout_amount == Decimal("1410000.00")
+    assert str(rec).startswith(rec.code)
+
 
 

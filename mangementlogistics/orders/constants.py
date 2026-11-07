@@ -24,6 +24,13 @@ class OrderPaymentStatus(models.TextChoices):
     PAID = cast(str, ("PAID", "Đã thanh toán"))
 
 
+class CODReconciliationStatus(models.TextChoices):
+    PENDING = cast(str, ("PENDING", "Chờ đối soát"))
+    CONFIRMED = cast(str, ("CONFIRMED", "Đã xác nhận đối soát"))
+    PAID = cast(str, ("PAID", "Đã quyết toán"))
+
+
+
 # ==============================================================================
 # Shipping Calculation Constants & Regional Classifications
 # ==============================================================================

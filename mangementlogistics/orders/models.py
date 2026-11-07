@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from mangementlogistics.orders.constants import (
+    CODReconciliationStatus,
     OrderPaymentMethod,
     OrderPaymentStatus,
     OrderStatus,
@@ -98,6 +99,14 @@ class Order(models.Model):
         choices=OrderPaymentStatus.choices,
         default=OrderPaymentStatus.UNPAID,
     )
+    reconciliation = models.ForeignKey(
+        "CODReconciliation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="orders",
+        verbose_name=_("Kỳ đối soát COD"),
+    )
 
     # Delivery status
     status = models.CharField(
@@ -178,4 +187,99 @@ class OrderTrackingHistory(models.Model):
 
     def __str__(self) -> str:
         return f"{self.order.tracking_number} - {self.get_status_display()} ({self.created_at.strftime('%d/%m/%Y %H:%M')})"
+
+
+def generate_unique_reconciliation_code() -> str:
+    """Generates unique reconciliation batch code like REC-20261107-A1B2"""
+    date_part = timezone.now().strftime("%Y%m%d")
+    random_part = uuid.uuid4().hex[:4].upper()
+    return f"REC-{date_part}-{random_part}"
+
+
+class CODReconciliation(models.Model):
+    """
+    Financial statement aggregating delivered COD orders for shop payout settlement.
+    """
+    code = models.CharField(
+        _("Mã bảng kê đối soát"),
+        max_length=64,
+        unique=True,
+        default=generate_unique_reconciliation_code,
+        editable=False,
+        db_index=True,
+    )
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="cod_reconciliations",
+        verbose_name=_("Khách hàng / Chủ shop"),
+    )
+    total_orders_count = models.PositiveIntegerField(
+        _("Số lượng đơn hàng"),
+        default=0,
+    )
+    total_cod_amount = models.DecimalField(
+        _("Tổng tiền thu hộ COD (VNĐ)"),
+        max_digits=14,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.00)],
+    )
+    total_shipping_fees = models.DecimalField(
+        _("Tổng cước phí vận chuyển (VNĐ)"),
+        max_digits=14,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.00)],
+    )
+    net_payout_amount = models.DecimalField(
+        _("Số tiền thực nhận / Quyết toán (VNĐ)"),
+        max_digits=14,
+        decimal_places=2,
+        default=0.00,
+    )
+    status = models.CharField(
+        _("Trạng thái đối soát"),
+        max_length=32,
+        choices=CODReconciliationStatus.choices,
+        default=CODReconciliationStatus.PENDING,
+        db_index=True,
+    )
+    notes = models.TextField(
+        _("Ghi chú quyết toán"),
+        blank=True,
+        default="",
+    )
+    processed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="processed_reconciliations",
+        verbose_name=_("Người xử lý"),
+    )
+    created_at = models.DateTimeField(
+        _("Ngày lập bảng kê"),
+        auto_now_add=True,
+        db_index=True,
+    )
+    confirmed_at = models.DateTimeField(
+        _("Thời điểm xác nhận"),
+        null=True,
+        blank=True,
+    )
+    paid_at = models.DateTimeField(
+        _("Thời điểm thanh toán"),
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = _("Bảng kê đối soát COD")
+        verbose_name_plural = _("Danh sách đối soát COD")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.code} - {self.customer.email} ({self.get_status_display()})"
+
 
