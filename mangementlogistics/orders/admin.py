@@ -4,6 +4,7 @@ from django.contrib import admin
 from mangementlogistics.orders.models import (
     CODReconciliation,
     Order,
+    OrderReturn,
     OrderTrackingHistory,
 )
 
@@ -66,5 +67,30 @@ class CODReconciliationAdmin(admin.ModelAdmin):
     list_filter = ("status", "created_at", "paid_at")
     search_fields = ("code", "customer__email", "customer__name")
     readonly_fields = ("code", "created_at", "confirmed_at", "paid_at")
+
+
+@admin.register(OrderReturn)
+class OrderReturnAdmin(admin.ModelAdmin):
+    list_display = (
+        "return_code",
+        "order",
+        "requested_by",
+        "reason",
+        "status",
+        "fee_payer",
+        "return_shipping_fee",
+        "refund_amount",
+        "assigned_driver",
+        "created_at",
+    )
+    list_filter = ("status", "reason", "fee_payer", "created_at")
+    search_fields = (
+        "return_code",
+        "order__tracking_number",
+        "requested_by__email",
+        "assigned_driver__email",
+    )
+    readonly_fields = ("return_code", "created_at", "approved_at", "completed_at", "updated_at")
+
 
 

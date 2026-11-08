@@ -8,6 +8,9 @@ from mangementlogistics.orders.constants import (
     OrderPaymentMethod,
     OrderPaymentStatus,
     OrderStatus,
+    ReturnFeePayer,
+    ReturnReason,
+    ReturnStatus,
 )
 from mangementlogistics.orders.exceptions import (
     CODReconciliationError,
@@ -15,7 +18,11 @@ from mangementlogistics.orders.exceptions import (
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
 )
-from mangementlogistics.orders.models import CODReconciliation, Order
+from mangementlogistics.orders.models import (
+    CODReconciliation,
+    Order,
+    OrderReturn,
+)
 from mangementlogistics.orders.selectors import (
     cod_reconciliation_get_summary_stats,
     cod_reconciliation_list,
@@ -545,6 +552,38 @@ def test_cod_reconciliation_end_to_end_delivery_to_payout(customer_user, driver_
     order.refresh_from_db()
     assert rec.status == CODReconciliationStatus.PAID
     assert order.payment_status == OrderPaymentStatus.PAID
+
+
+def test_order_return_model_defaults(customer_user):
+    """
+    Test OrderReturn model creation, generated code, and initial status.
+    """
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender",
+        sender_phone="0901",
+        sender_address="Hanoi",
+        receiver_name="Receiver",
+        receiver_phone="0902",
+        receiver_address="HCM",
+        cod_amount=Decimal("300000.00"),
+        shipping_fee=Decimal("30000.00"),
+    )
+    ret = OrderReturn.objects.create(
+        order=order,
+        requested_by=customer_user,
+        reason=ReturnReason.WRONG_ITEM,
+        reason_detail="Khách báo nhận sai màu áo",
+        fee_payer=ReturnFeePayer.SHOP,
+        return_shipping_fee=Decimal("25000.00"),
+        refund_amount=Decimal("300000.00"),
+    )
+    assert ret.return_code.startswith("RET-")
+    assert ret.status == ReturnStatus.REQUESTED
+    assert ret.order_id == order.id
+    assert ret.refund_amount == Decimal("300000.00")
+    assert str(ret).startswith(ret.return_code)
+
 
 
 

@@ -12,6 +12,9 @@ from mangementlogistics.orders.constants import (
     OrderPaymentMethod,
     OrderPaymentStatus,
     OrderStatus,
+    ReturnFeePayer,
+    ReturnReason,
+    ReturnStatus,
 )
 
 
@@ -286,5 +289,129 @@ class CODReconciliation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.code} - {self.customer.email} ({self.get_status_display()})"
+
+
+def generate_unique_return_code() -> str:
+    """Generates unique reverse logistics RMA code like RET-20261108-A1B2"""
+    date_part = timezone.now().strftime("%Y%m%d")
+    random_part = uuid.uuid4().hex[:4].upper()
+    return f"RET-{date_part}-{random_part}"
+
+
+class OrderReturn(models.Model):
+    """
+    Reverse logistics return order (RMA) tracking returns, exchanges, refunds, and return transit.
+    """
+    return_code = models.CharField(
+        _("Mã phiếu trả hàng"),
+        max_length=64,
+        unique=True,
+        default=generate_unique_return_code,
+        editable=False,
+        db_index=True,
+    )
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="returns",
+        verbose_name=_("Đơn hàng gốc"),
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="requested_returns",
+        verbose_name=_("Người yêu cầu hoàn trả"),
+    )
+    assigned_driver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_return_tasks",
+        verbose_name=_("Tài xế thu hồi bưu phẩm"),
+    )
+    reason = models.CharField(
+        _("Lý do hoàn trả"),
+        max_length=64,
+        choices=ReturnReason.choices,
+        default=ReturnReason.CUSTOMER_REFUSED,
+    )
+    reason_detail = models.TextField(
+        _("Mô tả chi tiết nguyên nhân"),
+        blank=True,
+        default="",
+    )
+    status = models.CharField(
+        _("Trạng thái xử lý trả hàng"),
+        max_length=32,
+        choices=ReturnStatus.choices,
+        default=ReturnStatus.REQUESTED,
+        db_index=True,
+    )
+    fee_payer = models.CharField(
+        _("Bên chịu phí hoàn hàng"),
+        max_length=32,
+        choices=ReturnFeePayer.choices,
+        default=ReturnFeePayer.SHOP,
+    )
+    return_shipping_fee = models.DecimalField(
+        _("Cước phí chuyển hoàn (VNĐ)"),
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.00)],
+    )
+    refund_amount = models.DecimalField(
+        _("Số tiền hoàn trả (VNĐ)"),
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        validators=[MinValueValidator(0.00)],
+    )
+    return_address = models.CharField(
+        _("Địa chỉ nhận hàng hoàn (Kho / Shop)"),
+        max_length=500,
+        blank=True,
+        default="",
+    )
+    pickup_address = models.CharField(
+        _("Địa chỉ thu hồi hàng"),
+        max_length=500,
+        blank=True,
+        default="",
+    )
+    notes = models.TextField(
+        _("Ghi chú tiến trình hoàn trả"),
+        blank=True,
+        default="",
+    )
+    created_at = models.DateTimeField(
+        _("Ngày tạo yêu cầu"),
+        auto_now_add=True,
+        db_index=True,
+    )
+    approved_at = models.DateTimeField(
+        _("Thời điểm duyệt"),
+        null=True,
+        blank=True,
+    )
+    completed_at = models.DateTimeField(
+        _("Thời điểm hoàn tất"),
+        null=True,
+        blank=True,
+    )
+    updated_at = models.DateTimeField(
+        _("Cập nhật lần cuối"),
+        auto_now=True,
+    )
+
+    class Meta:
+        verbose_name = _("Đơn hàng hoàn trả")
+        verbose_name_plural = _("Danh sách đơn hàng hoàn trả")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.return_code} - {self.order.tracking_number} ({self.get_status_display()})"
+
 
 
