@@ -14,16 +14,21 @@ from mangementlogistics.orders.constants import (
     REGION_CENTRAL,
     REGION_NORTH,
     REGION_SOUTH,
+    ReturnFeePayer,
+    ReturnReason,
+    ReturnStatus,
 )
 from mangementlogistics.orders.exceptions import (
     CODReconciliationError,
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
+    OrderReturnError,
 )
 from mangementlogistics.orders.models import (
     CODReconciliation,
     Order,
+    OrderReturn,
     OrderTrackingHistory,
 )
 from mangementlogistics.users.constants import UserRole
@@ -561,5 +566,221 @@ def cod_reconciliation_mark_paid(
         reconciliation.orders.update(payment_status=OrderPaymentStatus.PAID)
 
         return reconciliation
+
+
+def order_return_create(
+    *,
+    order: Order,
+    actor: User,
+    reason: str,
+    reason_detail: str = "",
+    fee_payer: str = ReturnFeePayer.SHOP,
+    return_shipping_fee: Decimal | float | int = 0,
+    refund_amount: Decimal | float | int = 0,
+    return_address: str = "",
+    pickup_address: str = "",
+    notes: str = "",
+) -> OrderReturn:
+    """
+    Creates a new RMA return request for an order.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_owner = order.customer_id == actor.id
+
+    if not is_admin and not is_owner:
+        raise OrderPermissionDeniedError("Bạn không có quyền yêu cầu hoàn trả cho đơn hàng này.")
+
+    if order.status in [OrderStatus.CANCELLED]:
+        raise OrderReturnError("Không thể yêu cầu hoàn trả cho đơn hàng đã bị hủy.")
+
+    active_statuses = [
+        ReturnStatus.REQUESTED,
+        ReturnStatus.APPROVED,
+        ReturnStatus.PICKING_UP,
+        ReturnStatus.IN_RETURN_TRANSIT,
+    ]
+    if order.returns.filter(status__in=active_statuses).exists():
+        raise OrderReturnError("Đơn hàng này hiện đã có một yêu cầu hoàn trả đang được xử lý.")
+
+    ret_address = (return_address or order.sender_address).strip()
+    p_address = (pickup_address or order.receiver_address).strip()
+
+    ref_amt = Decimal(str(refund_amount or 0))
+    if ref_amt <= Decimal("0") and order.cod_amount > Decimal("0") and order.status == OrderStatus.DELIVERED:
+        ref_amt = order.cod_amount
+
+    ret_fee = Decimal(str(return_shipping_fee or 0))
+    if ret_fee <= Decimal("0"):
+        ret_fee = order.shipping_fee or Decimal("25000.00")
+
+    order_return = OrderReturn.objects.create(
+        order=order,
+        requested_by=actor,
+        reason=reason,
+        reason_detail=reason_detail.strip(),
+        fee_payer=fee_payer,
+        return_shipping_fee=ret_fee,
+        refund_amount=ref_amt,
+        return_address=ret_address,
+        pickup_address=p_address,
+        notes=notes.strip(),
+        status=ReturnStatus.REQUESTED,
+    )
+
+    order_add_tracking_event(
+        order=order,
+        status=order.status,
+        note=f"Tạo yêu cầu hoàn trả {order_return.return_code}: {order_return.get_reason_display()}",
+        actor=actor,
+    )
+
+    return order_return
+
+
+def order_return_approve(
+    *,
+    order_return: OrderReturn,
+    actor: User,
+    driver_id: int | None = None,
+    return_shipping_fee: Decimal | float | int | None = None,
+    refund_amount: Decimal | float | int | None = None,
+    notes: str = "",
+) -> OrderReturn:
+    """
+    Approves an RMA return request, optionally assigning a driver and updating fees.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    if not is_admin:
+        raise OrderPermissionDeniedError("Chỉ Quản trị viên mới có quyền duyệt yêu cầu hoàn trả.")
+
+    if order_return.status != ReturnStatus.REQUESTED:
+        raise OrderReturnError(
+            f"Không thể duyệt yêu cầu đang ở trạng thái '{order_return.get_status_display()}'."
+        )
+
+    order_return.status = ReturnStatus.APPROVED
+    order_return.approved_at = timezone.now()
+
+    if driver_id:
+        driver = User.objects.filter(id=driver_id, role=UserRole.DRIVER, is_active=True).first()
+        if not driver:
+            raise DriverAssignmentError("Tài xế được chỉ định không hợp lệ hoặc không hoạt động.")
+        order_return.assigned_driver = driver
+
+    if return_shipping_fee is not None:
+        order_return.return_shipping_fee = Decimal(str(return_shipping_fee))
+    if refund_amount is not None:
+        order_return.refund_amount = Decimal(str(refund_amount))
+
+    if notes:
+        existing = f"{order_return.notes}\n" if order_return.notes else ""
+        order_return.notes = f"{existing}[Phê duyệt]: {notes}".strip()
+
+    order_return.save()
+
+    order_add_tracking_event(
+        order=order_return.order,
+        status=order_return.order.status,
+        note=f"Yêu cầu hoàn trả {order_return.return_code} đã được duyệt.",
+        actor=actor,
+    )
+
+    return order_return
+
+
+def order_return_reject(
+    *,
+    order_return: OrderReturn,
+    actor: User,
+    reason: str = "",
+) -> OrderReturn:
+    """
+    Rejects an RMA return request with a specified reason.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    if not is_admin:
+        raise OrderPermissionDeniedError("Chỉ Quản trị viên mới có quyền từ chối yêu cầu hoàn trả.")
+
+    if order_return.status != ReturnStatus.REQUESTED:
+        raise OrderReturnError("Chỉ có thể từ chối yêu cầu hoàn trả đang chờ duyệt.")
+
+    order_return.status = ReturnStatus.REJECTED
+    if reason:
+        existing = f"{order_return.notes}\n" if order_return.notes else ""
+        order_return.notes = f"{existing}[Từ chối]: {reason}".strip()
+
+    order_return.save()
+
+    order_add_tracking_event(
+        order=order_return.order,
+        status=order_return.order.status,
+        note=f"Yêu cầu hoàn trả {order_return.return_code} đã bị từ chối. {f'Lý do: {reason}' if reason else ''}".strip(),
+        actor=actor,
+    )
+
+    return order_return
+
+
+def order_return_update_status(
+    *,
+    order_return: OrderReturn,
+    new_status: str,
+    actor: User,
+    location: str = "",
+    note: str = "",
+) -> OrderReturn:
+    """
+    Updates the transit / resolution status of an order return.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_assigned_driver = (
+        getattr(actor, "role", None) == UserRole.DRIVER
+        and order_return.assigned_driver_id == actor.id
+    )
+
+    if not is_admin and not is_assigned_driver:
+        raise OrderPermissionDeniedError("Bạn không có quyền cập nhật tiến trình trả hàng này.")
+
+    if order_return.status in [ReturnStatus.RETURNED_TO_SENDER, ReturnStatus.REJECTED, ReturnStatus.CANCELLED]:
+        raise OrderReturnError(
+            f"Yêu cầu hoàn trả đã ở trạng thái kết thúc '{order_return.get_status_display()}', không thể đổi trạng thái."
+        )
+
+    if not is_admin and is_assigned_driver:
+        allowed_driver_statuses = [
+            ReturnStatus.PICKING_UP,
+            ReturnStatus.IN_RETURN_TRANSIT,
+            ReturnStatus.RETURNED_TO_SENDER,
+        ]
+        if new_status not in allowed_driver_statuses:
+            raise OrderPermissionDeniedError(f"Tài xế không có quyền chuyển sang trạng thái '{new_status}'.")
+
+    with transaction.atomic():
+        order_return.status = new_status
+        if new_status == ReturnStatus.RETURNED_TO_SENDER:
+            order_return.completed_at = timezone.now()
+
+        if note:
+            existing = f"{order_return.notes}\n" if order_return.notes else ""
+            order_return.notes = f"{existing}[Cập nhật]: {note}".strip()
+
+        order_return.save()
+
+        if new_status in [ReturnStatus.IN_RETURN_TRANSIT, ReturnStatus.RETURNED_TO_SENDER]:
+            order = order_return.order
+            if order.status != OrderStatus.RETURNED:
+                order.status = OrderStatus.RETURNED
+                order.save()
+
+        order_add_tracking_event(
+            order=order_return.order,
+            status=order_return.order.status,
+            location=location,
+            note=note or f"Tiến trình trả hàng {order_return.return_code}: {order_return.get_status_display()}",
+            actor=actor,
+        )
+
+        return order_return
+
 
 

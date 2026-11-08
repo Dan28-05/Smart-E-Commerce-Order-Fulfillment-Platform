@@ -17,6 +17,7 @@ from mangementlogistics.orders.exceptions import (
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
+    OrderReturnError,
 )
 from mangementlogistics.orders.models import (
     CODReconciliation,
@@ -36,6 +37,10 @@ from mangementlogistics.orders.services import (
     order_cancel,
     order_create,
     order_delete,
+    order_return_approve,
+    order_return_create,
+    order_return_reject,
+    order_return_update_status,
     order_update,
     order_update_status,
 )
@@ -583,6 +588,175 @@ def test_order_return_model_defaults(customer_user):
     assert ret.order_id == order.id
     assert ret.refund_amount == Decimal("300000.00")
     assert str(ret).startswith(ret.return_code)
+
+
+def test_order_return_create_success(customer_user):
+    """
+    Test creating an order return request successfully.
+    """
+    order = order_create(
+        customer=customer_user,
+        sender_name="Shop Test",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver Test",
+        receiver_phone="0922",
+        receiver_address="HCM",
+        cod_amount=Decimal("500000.00"),
+        shipping_fee=Decimal("35000.00"),
+    )
+    ret = order_return_create(
+        order=order,
+        actor=customer_user,
+        reason=ReturnReason.DAMAGED,
+        reason_detail="Vỡ hộp khi vận chuyển",
+    )
+    assert ret.status == ReturnStatus.REQUESTED
+    assert ret.order_id == order.id
+    assert ret.return_shipping_fee == Decimal("35000.00")
+    assert order.tracking_history.filter(note__icontains=ret.return_code).exists()
+
+
+def test_order_return_create_duplicate_raises_error(customer_user):
+    """
+    Ensure cannot create multiple active returns for the same order.
+    """
+    order = order_create(
+        customer=customer_user,
+        sender_name="Shop Test",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver Test",
+        receiver_phone="0922",
+        receiver_address="HCM",
+    )
+    order_return_create(
+        order=order,
+        actor=customer_user,
+        reason=ReturnReason.WRONG_ITEM,
+    )
+    with pytest.raises(OrderReturnError, match="đã có một yêu cầu hoàn trả"):
+        order_return_create(
+            order=order,
+            actor=customer_user,
+            reason=ReturnReason.OTHER,
+        )
+
+
+def test_order_return_approve_and_reject(customer_user, admin_user, driver_user):
+    """
+    Test admin approving with driver assignment and admin rejecting.
+    """
+    order = order_create(
+        customer=customer_user,
+        sender_name="Shop Test",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver Test",
+        receiver_phone="0922",
+        receiver_address="HCM",
+    )
+    ret = order_return_create(
+        order=order,
+        actor=customer_user,
+        reason=ReturnReason.CUSTOMER_REFUSED,
+    )
+
+    # 1. Non-admin cannot approve
+    with pytest.raises(OrderPermissionDeniedError):
+        order_return_approve(order_return=ret, actor=customer_user)
+
+    # 2. Admin approves
+    approved_ret = order_return_approve(
+        order_return=ret,
+        actor=admin_user,
+        driver_id=driver_user.id,
+        notes="Chấp thuận thu hồi",
+    )
+    assert approved_ret.status == ReturnStatus.APPROVED
+    assert approved_ret.assigned_driver_id == driver_user.id
+    assert approved_ret.approved_at is not None
+
+    # Test reject on fresh return
+    order2 = order_create(
+        customer=customer_user,
+        sender_name="Shop 2",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver 2",
+        receiver_phone="0922",
+        receiver_address="HCM",
+    )
+    ret2 = order_return_create(
+        order=order2,
+        actor=customer_user,
+        reason=ReturnReason.OTHER,
+    )
+    rejected_ret = order_return_reject(
+        order_return=ret2,
+        actor=admin_user,
+        reason="Không đủ điều kiện đổi trả theo quy định shop",
+    )
+    assert rejected_ret.status == ReturnStatus.REJECTED
+    assert "Không đủ điều kiện" in rejected_ret.notes
+
+
+def test_order_return_driver_status_pipeline(customer_user, admin_user, driver_user):
+    """
+    Test driver updating return status along reverse pipeline.
+    """
+    order = order_create(
+        customer=customer_user,
+        sender_name="Shop Test",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver Test",
+        receiver_phone="0922",
+        receiver_address="HCM",
+    )
+    ret = order_return_create(
+        order=order,
+        actor=customer_user,
+        reason=ReturnReason.CUSTOMER_REQUESTED,
+    )
+    order_return_approve(order_return=ret, actor=admin_user, driver_id=driver_user.id)
+
+    # Driver updates to PICKING_UP
+    order_return_update_status(
+        order_return=ret,
+        new_status=ReturnStatus.PICKING_UP,
+        actor=driver_user,
+        location="Quan 1, HCM",
+        note="Đến lấy hàng từ khách",
+    )
+    ret.refresh_from_db()
+    assert ret.status == ReturnStatus.PICKING_UP
+
+    # Driver updates to IN_RETURN_TRANSIT -> master order status changes to RETURNED
+    order_return_update_status(
+        order_return=ret,
+        new_status=ReturnStatus.IN_RETURN_TRANSIT,
+        actor=driver_user,
+        location="Hub Trung Chuyen",
+        note="Đã đưa về kho trung chuyển",
+    )
+    ret.refresh_from_db()
+    order.refresh_from_db()
+    assert ret.status == ReturnStatus.IN_RETURN_TRANSIT
+    assert order.status == OrderStatus.RETURNED
+
+    # Driver completes return to sender
+    order_return_update_status(
+        order_return=ret,
+        new_status=ReturnStatus.RETURNED_TO_SENDER,
+        actor=driver_user,
+        location="Kho Shop, Hanoi",
+        note="Giao trả hàng thành công cho shop",
+    )
+    ret.refresh_from_db()
+    assert ret.status == ReturnStatus.RETURNED_TO_SENDER
+    assert ret.completed_at is not None
+
 
 
 

@@ -25,3 +25,9 @@ class CODReconciliationError(Exception):
     """Raised when COD reconciliation processing fails or validation is violated."""
     pass
 
+
+class OrderReturnError(Exception):
+    """Raised when an order return operation fails or violates validation rules."""
+    pass
+
+
