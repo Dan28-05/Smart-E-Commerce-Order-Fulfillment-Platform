@@ -1,35 +1,297 @@
 {% extends "base.html" %}
 
-{% block title %}Phiếu trả hàng {{ return_obj.return_code }} - MangementLogistics{% endblock title %}
+{% block title %}Yêu cầu hoàn trả {{ order_return.return_code }} - MangementLogistics{% endblock title %}
 
 {% block content %}
 <div class="py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h2 class="fw-bold mb-1">Phiếu yêu cầu hoàn trả #{{ return_obj.return_code }}</h2>
-      <p class="text-muted mb-0">Đơn hàng gốc: <a href="{% url 'orders:order-detail' order.id %}">{{ order.tracking_number }}</a></p>
+  <!-- Top Bar & Actions -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'orders:return-list' %}" class="btn btn-outline-secondary rounded-circle p-2 d-inline-flex align-items-center justify-content-center" style="width: 40px; height: 40px;" title="Quay lại danh sách">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <h2 class="h4 fw-bold mb-0">Hồ sơ hoàn trả: {{ order_return.return_code }}</h2>
+          {% if order_return.status == "REQUESTED" %}
+            <span class="badge bg-warning text-dark"><i class="bi bi-hourglass me-1"></i>Chờ duyệt</span>
+          {% elif order_return.status == "APPROVED" %}
+            <span class="badge bg-info text-dark"><i class="bi bi-check-circle me-1"></i>Đã phê duyệt</span>
+          {% elif order_return.status == "PICKING_UP" %}
+            <span class="badge bg-primary"><i class="bi bi-box-arrow-in-down me-1"></i>Đang lấy hàng</span>
+          {% elif order_return.status == "IN_RETURN_TRANSIT" %}
+            <span class="badge bg-primary bg-opacity-75"><i class="bi bi-truck me-1"></i>Đang chuyển hoàn</span>
+          {% elif order_return.status == "RETURNED_TO_SENDER" %}
+            <span class="badge bg-success"><i class="bi bi-check2-all me-1"></i>Đã trả về Shop</span>
+          {% elif order_return.status == "REJECTED" %}
+            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ order_return.get_status_display }}</span>
+          {% endif %}
+        </div>
+        <p class="text-muted small mb-0">
+          Đơn hàng gốc: <a href="{% url 'orders:order-detail' order.id %}" class="fw-semibold text-decoration-none">#{{ order.tracking_number }}</a>
+          | Người yêu cầu: <strong>{{ order_return.requested_by.name|default:order_return.requested_by.email }}</strong>
+          | Ngày gửi yêu cầu: {{ order_return.created_at|date:"d/m/Y H:i" }}
+        </p>
+      </div>
     </div>
+
     <div class="d-flex gap-2">
-      <a href="{% url 'orders:return-list' %}" class="btn btn-outline-secondary rounded-pill">Quay lại danh sách</a>
+      <a href="{% url 'orders:return-print' order_return.id %}" target="_blank" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="bi bi-printer me-1"></i>In phiếu RMA
+      </a>
+      <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-outline-primary rounded-pill px-3 fw-semibold">
+        <i class="bi bi-box-seam me-1"></i>Xem đơn gốc
+      </a>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
-    <div class="row g-3">
-      <div class="col-md-4">
-        <span class="text-muted small">Lý do:</span>
-        <div class="fw-bold">{{ return_obj.get_reason_display }}</div>
+  <!-- Rejection Alert if Rejected -->
+  {% if order_return.status == "REJECTED" %}
+    <div class="alert alert-danger border-0 shadow-sm rounded-4 mb-4 d-flex align-items-center">
+      <i class="bi bi-exclamation-octagon-fill fs-3 me-3 text-danger"></i>
+      <div>
+        <h5 class="fw-bold mb-1">Yêu cầu hoàn trả đã bị từ chối</h5>
+        <p class="mb-0 small">Lý do từ chối: {{ order_return.reason_detail|default:"Không đáp ứng chính sách bảo hành / đổi trả của sàn." }}</p>
       </div>
-      <div class="col-md-4">
-        <span class="text-muted small">Trạng thái:</span>
-        <div><span class="badge bg-primary">{{ return_obj.get_status_display }}</span></div>
+    </div>
+  {% endif %}
+
+  <!-- Quick Metrics Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Số tiền hoàn trả</span>
+        <span class="fs-4 fw-bold text-success mt-1">{{ order_return.refund_amount|floatformat:0 }} đ</span>
       </div>
-      <div class="col-md-4">
-        <span class="text-muted small">Số tiền hoàn trả:</span>
-        <div class="fw-bold text-success">{{ return_obj.refund_amount|floatformat:0 }} đ</div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Cước phí hoàn trả</span>
+        <span class="fs-4 fw-bold text-danger mt-1">{{ order_return.return_shipping_fee|floatformat:0 }} đ</span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Bên chi trả phí cước</span>
+        <span class="fs-5 fw-bold text-dark mt-1">{{ order_return.get_fee_payer_display }}</span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Tài xế phụ trách thu gom</span>
+        <span class="fs-5 fw-bold text-primary mt-1">
+          {% if order_return.assigned_driver %}
+            {{ order_return.assigned_driver.name|default:order_return.assigned_driver.email }}
+          {% else %}
+            <span class="text-muted">Chưa chỉ định</span>
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <!-- CỘT TRÁI: CHI TIẾT HOÀN HÀNG & LỘ TRÌNH -->
+    <div class="col-lg-7">
+      <!-- Thông tin hoàn trả -->
+      <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
+        <h5 class="fw-bold mb-3 d-flex align-items-center">
+          <i class="bi bi-info-circle text-primary me-2"></i>Chi tiết khiếu nại & lý do hoàn trả
+        </h5>
+        <div class="row g-3 small">
+          <div class="col-sm-6">
+            <span class="d-block text-muted">Lý do chính:</span>
+            <span class="fw-bold text-dark fs-6">{{ order_return.get_reason_display }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="d-block text-muted">Thời điểm duyệt:</span>
+            <span class="fw-semibold text-dark">{{ order_return.approved_at|date:"d/m/Y H:i"|default:"Chưa duyệt" }}</span>
+          </div>
+          <div class="col-12">
+            <span class="d-block text-muted">Mô tả chi tiết từ khách hàng / quản trị viên:</span>
+            <div class="p-3 bg-light rounded-3 mt-1 text-dark">
+              {{ order_return.reason_detail|linebreaksbr|default:"Không có mô tả chi tiết kèm theo." }}
+            </div>
+          </div>
+          {% if order_return.completed_at %}
+            <div class="col-sm-6">
+              <span class="d-block text-muted">Thời điểm hoàn tất trả hàng:</span>
+              <span class="fw-bold text-success">{{ order_return.completed_at|date:"d/m/Y H:i" }}</span>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Lộ trình thu hồi và chuyển trả -->
+      <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
+        <h5 class="fw-bold mb-3 d-flex align-items-center">
+          <i class="bi bi-geo-alt text-danger me-2"></i>Lộ trình thu hồi & Trả hàng
+        </h5>
+        <div class="row g-3 small">
+          <div class="col-md-6">
+            <div class="p-3 border rounded-3 h-100 bg-light">
+              <span class="badge bg-secondary mb-2">1. Điểm lấy bưu phẩm hoàn</span>
+              <div class="fw-semibold text-dark">{{ order.receiver_name }} ({{ order.receiver_phone }})</div>
+              <div class="text-muted mt-1">{{ order_return.pickup_address }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 border rounded-3 h-100 bg-light">
+              <span class="badge bg-primary mb-2">2. Điểm nhận hoàn trả (Người gửi/Shop)</span>
+              <div class="fw-semibold text-dark">{{ order.sender_name }} ({{ order.sender_phone }})</div>
+              <div class="text-muted mt-1">{{ order_return.return_address }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tóm tắt đơn hàng gốc -->
+      <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+        <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-box-seam text-secondary me-2"></i>Thông tin đơn hàng gốc</span>
+          <a href="{% url 'orders:order-detail' order.id %}" class="small text-decoration-none">Xem toàn bộ</a>
+        </h5>
+        <div class="row g-2 small">
+          <div class="col-sm-6">
+            <span class="text-muted">Mã theo dõi:</span>
+            <span class="fw-bold text-dark">#{{ order.tracking_number }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted">Trạng thái hiện thời:</span>
+            <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted">Tiền thu hộ COD đơn gốc:</span>
+            <span class="fw-semibold text-success">{{ order.cod_amount|floatformat:0 }} đ</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted">Cước vận chuyển gốc:</span>
+            <span class="fw-semibold">{{ order.shipping_fee|floatformat:0 }} đ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: QUẢN TRỊ & XỬ LÝ QUY TRÌNH -->
+    <div class="col-lg-5">
+      {% if is_admin or is_driver %}
+        <!-- BẢNG ĐIỀU KHIỂN XỬ LÝ (ACTION PANEL) -->
+        <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
+          <h5 class="fw-bold mb-3 d-flex align-items-center">
+            <i class="bi bi-gear-fill text-warning me-2"></i>Bảng điều khiển xử lý
+          </h5>
+
+          {% if is_admin and order_return.status == "REQUESTED" %}
+            <!-- Phê duyệt form -->
+            <form method="post" action="{% url 'orders:return-action' order_return.id %}" class="mb-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="APPROVE">
+              <h6 class="fw-bold text-success mb-2"><i class="bi bi-check-circle me-1"></i>Phê duyệt yêu cầu hoàn trả</h6>
+              
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Phân công tài xế thu hồi:</label>
+                {{ action_form.driver }}
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Ghi chú phê duyệt:</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Nhập ghi chú hoặc căn cứ duyệt..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-success btn-sm w-100 rounded-pill fw-semibold">
+                <i class="bi bi-check-lg me-1"></i>Xác nhận duyệt hoàn hàng
+              </button>
+            </form>
+
+            <hr>
+
+            <!-- Từ chối form -->
+            <form method="post" action="{% url 'orders:return-action' order_return.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="REJECT">
+              <h6 class="fw-bold text-danger mb-2"><i class="bi bi-x-circle me-1"></i>Từ chối yêu cầu hoàn</h6>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Lý do từ chối:</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Ghi rõ lý do không chấp nhận..." required></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-outline-danger btn-sm w-100 rounded-pill fw-semibold">
+                <i class="bi bi-x-lg me-1"></i>Từ chối yêu cầu
+              </button>
+            </form>
+
+          {% elif order_return.status != "REJECTED" and order_return.status != "RETURNED_TO_SENDER" and order_return.status != "CANCELLED" %}
+            <!-- Cập nhật trạng thái luân chuyển -->
+            <form method="post" action="{% url 'orders:return-action' order_return.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="UPDATE_STATUS">
+              <h6 class="fw-bold text-primary mb-3"><i class="bi bi-arrow-repeat me-1"></i>Cập nhật tiến trình thu hồi</h6>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Chuyển sang trạng thái:</label>
+                <select name="status" class="form-select form-select-sm" required>
+                  {% if is_driver %}
+                    {% if order_return.status == "APPROVED" %}
+                      <option value="PICKING_UP">Đang lấy hàng hoàn (PICKING_UP)</option>
+                    {% elif order_return.status == "PICKING_UP" %}
+                      <option value="IN_RETURN_TRANSIT">Đang chuyển hoàn về shop (IN_RETURN_TRANSIT)</option>
+                    {% elif order_return.status == "IN_RETURN_TRANSIT" %}
+                      <option value="RETURNED_TO_SENDER">Đã hoàn trả thành công (RETURNED_TO_SENDER)</option>
+                    {% endif %}
+                  {% else %}
+                    <!-- Admin has full control -->
+                    <option value="APPROVED" {% if order_return.status == "APPROVED" %}selected{% endif %}>Đã duyệt</option>
+                    <option value="PICKING_UP" {% if order_return.status == "PICKING_UP" %}selected{% endif %}>Đang lấy hàng</option>
+                    <option value="IN_RETURN_TRANSIT" {% if order_return.status == "IN_RETURN_TRANSIT" %}selected{% endif %}>Đang chuyển hoàn</option>
+                    <option value="RETURNED_TO_SENDER" {% if order_return.status == "RETURNED_TO_SENDER" %}selected{% endif %}>Đã hoàn hàng về Shop</option>
+                  {% endif %}
+                </select>
+              </div>
+
+              {% if is_admin %}
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold">Thay đổi tài xế phụ trách:</label>
+                  {{ action_form.driver }}
+                </div>
+              {% endif %}
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Vị trí hiện tại (Trạm / Kho / Địa chỉ):</label>
+                <input type="text" name="location" class="form-control form-control-sm" placeholder="VD: Bưu cục Cầu Giấy, Hà Nội">
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Ghi chú hành trình:</label>
+                <input type="text" name="notes" class="form-control form-control-sm" placeholder="VD: Đã tiếp nhận gói bưu gửi từ người nhận">
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold">
+                <i class="bi bi-save me-1"></i>Lưu cập nhật hành trình
+              </button>
+            </form>
+          {% else %}
+            <div class="text-center py-3 text-muted">
+              <i class="bi bi-lock-fill fs-3 mb-2 d-block"></i>
+              <span class="small">Quy trình hoàn trả đã kết thúc. Không thể thay đổi trạng thái.</span>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Thẻ hướng dẫn quy trình RMA -->
+      <div class="card border-0 shadow-sm rounded-4 bg-light p-4">
+        <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-lightbulb text-warning me-2"></i>Quy chuẩn Reverse Logistics</h6>
+        <ul class="small text-muted ps-3 mb-0">
+          <li class="mb-2"><strong>Chờ duyệt:</strong> Bộ phận vận hành rà soát điều kiện hoàn trả theo đơn hàng.</li>
+          <li class="mb-2"><strong>Thu hồi:</strong> Tài xế đến địa chỉ người nhận bưu phẩm để thu lại hàng nguyên trạng.</li>
+          <li class="mb-2"><strong>Chuyển hoàn:</strong> Bưu phẩm được luân chuyển về trạm kho nguồn hoặc Shop gửi ban đầu.</li>
+          <li><strong>Quyết toán:</strong> Tiền cước và khoản bồi hoàn sẽ được tự động đồng bộ sang kỳ đối soát COD tiếp theo.</li>
+        </ul>
       </div>
     </div>
   </div>
 </div>
 {% endblock content %}
-

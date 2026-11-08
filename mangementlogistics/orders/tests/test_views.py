@@ -337,7 +337,7 @@ def test_order_return_views_flow(client, customer_user, admin_user, driver_user)
     create_url = reverse("orders:order-return-create", kwargs={"order_id": order.id})
     resp_create_get = client.get(create_url)
     assert resp_create_get.status_code == 200
-    assert "Yêu cầu hoàn trả bưu kiện" in resp_create_get.content.decode("utf-8")
+    assert "Tạo yêu cầu hoàn trả" in resp_create_get.content.decode("utf-8")
 
     # 5. POST return create form
     create_payload = {
@@ -353,7 +353,7 @@ def test_order_return_views_flow(client, customer_user, admin_user, driver_user)
     resp_create_post = client.post(create_url, data=create_payload, follow=True)
     assert resp_create_post.status_code == 200
     content = resp_create_post.content.decode("utf-8")
-    assert "Phiếu yêu cầu hoàn trả" in content
+    assert "Hồ sơ hoàn trả" in content
 
     # Get created return object
     ret = order.returns.first()
@@ -392,6 +392,14 @@ def test_order_return_views_flow(client, customer_user, admin_user, driver_user)
     assert resp_driver_update.status_code == 200
     ret.refresh_from_db()
     assert ret.status == ReturnStatus.PICKING_UP
+
+    # 8. Print RMA return slip view
+    print_url = reverse("orders:return-print", kwargs={"return_id": ret.id})
+    resp_print = client.get(print_url)
+    assert resp_print.status_code == 200
+    assert "PHIẾU THU HỒI & CHUYỂN HOÀN" in resp_print.content.decode("utf-8")
+    assert ret.return_code in resp_print.content.decode("utf-8")
+
 
 
 

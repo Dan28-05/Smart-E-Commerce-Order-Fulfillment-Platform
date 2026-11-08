@@ -1,35 +1,183 @@
 {% extends "base.html" %}
 
-{% block title %}Yêu cầu Hoàn trả đơn hàng - MangementLogistics{% endblock title %}
+{% block title %}Tạo yêu cầu hoàn trả - #{{ order.tracking_number }} - MangementLogistics{% endblock title %}
 
 {% block content %}
-<div class="row justify-content-center py-4">
-  <div class="col-lg-8">
-    <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
-      <h3 class="fw-bold mb-2">Yêu cầu hoàn trả bưu kiện</h3>
-      <p class="text-muted small mb-4">Đơn hàng: <strong>{{ order.tracking_number }}</strong> - Người nhận: {{ order.receiver_name }}</p>
-
-      <form method="post" novalidate>
-        {% csrf_token %}
-        {% for field in form %}
-          <div class="mb-3">
-            <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
-            {{ field }}
-            {% if field.errors %}
-              <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
-            {% endif %}
-          </div>
-        {% endfor %}
-
-        <div class="d-flex justify-content-end gap-2 mt-4">
-          <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-outline-secondary">Hủy bỏ</a>
-          <button type="submit" class="btn btn-danger px-4 fw-semibold">
-            <i class="bi bi-arrow-return-left me-1"></i>Gửi yêu cầu hoàn trả
-          </button>
+<div class="py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <!-- Breadcrumb / Back button -->
+      <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-outline-secondary rounded-circle p-2 d-inline-flex align-items-center justify-content-center" style="width: 40px; height: 40px;" title="Quay lại đơn hàng">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+          <h2 class="h4 fw-bold mb-1">Tạo yêu cầu hoàn trả đơn hàng (RMA)</h2>
+          <p class="text-muted small mb-0">Thiết lập thông tin thu hồi bưu phẩm và xử lý bồi hoàn cho đơn hàng #{{ order.tracking_number }}</p>
         </div>
-      </form>
+      </div>
+
+      <div class="row g-4">
+        <!-- CỘT TRÁI: FORM ĐIỀN THÔNG TIN -->
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+            <h5 class="fw-bold mb-3 d-flex align-items-center text-primary">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>Thông tin yêu cầu hoàn trả
+            </h5>
+
+            <form method="post" novalidate>
+              {% csrf_token %}
+
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger rounded-3 py-2 small mb-3">
+                  {{ form.non_field_errors|join:", " }}
+                </div>
+              {% endif %}
+
+              <div class="row g-3">
+                <!-- Lý do hoàn trả -->
+                <div class="col-md-6">
+                  <label for="{{ form.reason.id_for_label }}" class="form-label fw-semibold small">
+                    {{ form.reason.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.reason }}
+                  {% if form.reason.errors %}
+                    <div class="text-danger small mt-1">{{ form.reason.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Bên chịu phí vận chuyển hoàn -->
+                <div class="col-md-6">
+                  <label for="{{ form.fee_payer.id_for_label }}" class="form-label fw-semibold small">
+                    {{ form.fee_payer.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.fee_payer }}
+                  {% if form.fee_payer.errors %}
+                    <div class="text-danger small mt-1">{{ form.fee_payer.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Mô tả chi tiết lý do -->
+                <div class="col-12">
+                  <label for="{{ form.reason_detail.id_for_label }}" class="form-label fw-semibold small">
+                    {{ form.reason_detail.label }}
+                  </label>
+                  {{ form.reason_detail }}
+                  {% if form.reason_detail.errors %}
+                    <div class="text-danger small mt-1">{{ form.reason_detail.errors|join:", " }}</div>
+                  {% endif %}
+                  <div class="form-text small">Mô tả rõ tình trạng bưu kiện, lý do khách hàng từ chối nhận hoặc đổi ý.</div>
+                </div>
+
+                <!-- Tiền bồi hoàn & Cước phí hoàn -->
+                <div class="col-md-6">
+                  <label for="{{ form.refund_amount.id_for_label }}" class="form-label fw-semibold small">
+                    {{ form.refund_amount.label }}
+                  </label>
+                  <div class="input-group">
+                    {{ form.refund_amount }}
+                    <span class="input-group-text">VNĐ</span>
+                  </div>
+                  {% if form.refund_amount.errors %}
+                    <div class="text-danger small mt-1">{{ form.refund_amount.errors|join:", " }}</div>
+                  {% endif %}
+                  <div class="form-text small">Số tiền cần hoàn lại cho khách hàng hoặc thu hồi.</div>
+                </div>
+
+                <div class="col-md-6">
+                  <label for="{{ form.return_shipping_fee.id_for_label }}" class="form-label fw-semibold small">
+                    {{ form.return_shipping_fee.label }}
+                  </label>
+                  <div class="input-group">
+                    {{ form.return_shipping_fee }}
+                    <span class="input-group-text">VNĐ</span>
+                  </div>
+                  {% if form.return_shipping_fee.errors %}
+                    <div class="text-danger small mt-1">{{ form.return_shipping_fee.errors|join:", " }}</div>
+                  {% endif %}
+                  <div class="form-text small">Cước luân chuyển chiều về của bưu phẩm hoàn.</div>
+                </div>
+
+                <!-- Địa chỉ lấy hàng hoàn -->
+                <div class="col-12">
+                  <label for="{{ form.pickup_address.id_for_label }}" class="form-label fw-semibold small">
+                    {{ form.pickup_address.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.pickup_address }}
+                  {% if form.pickup_address.errors %}
+                    <div class="text-danger small mt-1">{{ form.pickup_address.errors|join:", " }}</div>
+                  {% endif %}
+                  <div class="form-text small">Nơi tài xế sẽ đến để nhận lại bưu phẩm trả về (mặc định địa chỉ người nhận).</div>
+                </div>
+
+                <!-- Địa chỉ trả về cho Shop -->
+                <div class="col-12">
+                  <label for="{{ form.return_address.id_for_label }}" class="form-label fw-semibold small">
+                    {{ form.return_address.label }} <span class="text-danger">*</span>
+                  </label>
+                  {{ form.return_address }}
+                  {% if form.return_address.errors %}
+                    <div class="text-danger small mt-1">{{ form.return_address.errors|join:", " }}</div>
+                  {% endif %}
+                  <div class="form-text small">Nơi tiếp nhận bưu kiện sau khi chuyển hoàn (mặc định địa chỉ người gửi ban đầu).</div>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                <a href="{% url 'orders:order-detail' order.id %}" class="btn btn-outline-secondary rounded-pill px-4">
+                  Hủy thao tác
+                </a>
+                <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold">
+                  <i class="bi bi-arrow-return-left me-1"></i>Xác nhận gửi yêu cầu hoàn
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- CỘT PHẢI: TÓM TẮT ĐƠN HÀNG GỐC -->
+        <div class="col-lg-4">
+          <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-3">
+            <h6 class="fw-bold mb-3 d-flex align-items-center text-dark">
+              <i class="bi bi-box-seam me-2 text-primary"></i>Tóm tắt đơn hàng gốc
+            </h6>
+            <div class="small">
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Mã vận đơn:</span>
+                <span class="fw-bold">#{{ order.tracking_number }}</span>
+              </div>
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Trạng thái:</span>
+                <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+              </div>
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Người gửi (Shop):</span>
+                <span class="fw-semibold text-end">{{ order.sender_name }}</span>
+              </div>
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Người nhận (Khách):</span>
+                <span class="fw-semibold text-end">{{ order.receiver_name }}</span>
+              </div>
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Tiền COD gốc:</span>
+                <span class="fw-bold text-success">{{ order.cod_amount|floatformat:0 }} đ</span>
+              </div>
+              <div class="d-flex justify-content-between py-1">
+                <span class="text-muted">Cước vận chuyển gốc:</span>
+                <span class="fw-semibold">{{ order.shipping_fee|floatformat:0 }} đ</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card border-0 shadow-sm rounded-4 bg-light p-4">
+            <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-shield-check text-success me-2"></i>Chính sách hoàn trả</h6>
+            <p class="small text-muted mb-0">
+              Mỗi đơn hàng chỉ được mở 1 yêu cầu hoàn trả đang hoạt động. Sau khi gửi, bộ phận điều hành sẽ xem xét thẩm định trước khi điều phối tài xế đến thu hồi hàng hóa.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 {% endblock content %}
-

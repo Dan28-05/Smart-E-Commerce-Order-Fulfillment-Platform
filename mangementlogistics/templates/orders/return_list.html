@@ -4,41 +4,257 @@
 
 {% block content %}
 <div class="py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <!-- Tiêu đề trang & Giới thiệu -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
-      <h2 class="fw-bold mb-1">Quản lý Đơn hàng Hoàn trả (RMA)</h2>
-      <p class="text-muted mb-0">Theo dõi tiến trình thu hồi bưu phẩm và xử lý khiếu nại hoàn trả.</p>
+      <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-3 py-1 rounded-pill fw-semibold mb-2">
+        <i class="bi bi-arrow-return-left me-1"></i>Reverse Logistics & RMA
+      </span>
+      <h2 class="h3 fw-bold mb-1">Quản lý Đơn hàng Hoàn trả (RMA)</h2>
+      <p class="text-muted small mb-0">Theo dõi quy trình thu hồi, thẩm định yêu cầu bồi hoàn và luân chuyển bưu kiện trả lại người gửi.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="bi bi-box-seam me-1"></i>Danh sách đơn hàng
+      </a>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+  <!-- Thẻ chỉ số KPI Hoàn trả -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Tổng yêu cầu</span>
+            <div class="rounded-3 bg-secondary bg-opacity-10 text-secondary p-2 d-inline-flex">
+              <i class="bi bi-collection fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-dark">{{ summary_stats.total_returns }}</h3>
+          <span class="small text-muted">Đơn hoàn RMA</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Chờ thẩm duyệt</span>
+            <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-2 d-inline-flex">
+              <i class="bi bi-hourglass-split fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-warning">{{ summary_stats.pending_requested }}</h3>
+          <span class="small text-muted">Đang chờ xử lý</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Đang thu hồi & chuyển hoàn</span>
+            <div class="rounded-3 bg-info bg-opacity-10 text-info p-2 d-inline-flex">
+              <i class="bi bi-truck fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-info">{{ summary_stats.in_transit_returns }}</h3>
+          <span class="small text-muted">Đã duyệt / Đang đi đường</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Hoàn hàng xong</span>
+            <div class="rounded-3 bg-success bg-opacity-10 text-success p-2 d-inline-flex">
+              <i class="bi bi-check2-circle fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-success">{{ summary_stats.completed_returns }}</h3>
+          <span class="small text-muted">Đã trả về Shop</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Tổng tiền bồi hoàn</span>
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2 d-inline-flex">
+              <i class="bi bi-cash-stack fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-primary">{{ summary_stats.total_refund_amount|floatformat:0 }} đ</h3>
+          <span class="small text-muted">Giá trị hoàn trả khách</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thanh lọc trạng thái và Tìm kiếm -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+    <div class="card-body p-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <!-- Bộ lọc pills -->
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Trạng thái:</span>
+          <a href="{% url 'orders:return-list' %}{% if search_query %}?q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if not selected_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+            Tất cả
+          </a>
+          <a href="{% url 'orders:return-list' %}?status=REQUESTED{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'REQUESTED' %}btn-warning text-dark{% else %}btn-outline-secondary{% endif %}">
+            Chờ duyệt
+          </a>
+          <a href="{% url 'orders:return-list' %}?status=APPROVED{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'APPROVED' %}btn-info text-dark{% else %}btn-outline-secondary{% endif %}">
+            Đã duyệt
+          </a>
+          <a href="{% url 'orders:return-list' %}?status=PICKING_UP{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'PICKING_UP' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+            Đang lấy hàng
+          </a>
+          <a href="{% url 'orders:return-list' %}?status=IN_RETURN_TRANSIT{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'IN_RETURN_TRANSIT' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+            Đang chuyển hoàn
+          </a>
+          <a href="{% url 'orders:return-list' %}?status=RETURNED_TO_SENDER{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'RETURNED_TO_SENDER' %}btn-success{% else %}btn-outline-secondary{% endif %}">
+            Đã hoàn thành
+          </a>
+          <a href="{% url 'orders:return-list' %}?status=REJECTED{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'REJECTED' %}btn-danger{% else %}btn-outline-secondary{% endif %}">
+            Từ chối
+          </a>
+        </div>
+
+        <!-- Ô tìm kiếm -->
+        <form method="get" class="d-flex align-items-center gap-2">
+          {% if selected_status %}
+            <input type="hidden" name="status" value="{{ selected_status }}">
+          {% endif %}
+          <div class="input-group input-group-sm" style="width: 280px;">
+            <input type="text" name="q" class="form-control" placeholder="Mã RMA, tracking, người nhận..." value="{{ search_query }}">
+            <button class="btn btn-outline-secondary" type="submit">
+              <i class="bi bi-search"></i>
+            </button>
+            {% if search_query %}
+              <a href="{% url 'orders:return-list' %}{% if selected_status %}?status={{ selected_status }}{% endif %}" class="btn btn-outline-danger" title="Xóa tìm kiếm">
+                <i class="bi bi-x"></i>
+              </a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danh sách đơn hoàn RMA -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
     <div class="table-responsive">
-      <table class="table align-middle">
-        <thead>
+      <table class="table align-middle table-hover mb-0">
+        <thead class="table-light">
           <tr>
-            <th>Mã trả hàng</th>
+            <th class="ps-4">Mã RMA / Ngày yêu cầu</th>
             <th>Mã đơn gốc</th>
-            <th>Lý do</th>
-            <th>Phí hoàn</th>
-            <th>Số tiền hoàn</th>
+            <th>Lý do hoàn trả</th>
+            <th>Chi phí & Bồi hoàn</th>
+            <th>Bên chịu phí</th>
+            <th>Tài xế thu hồi</th>
             <th>Trạng thái</th>
-            <th>Thao tác</th>
+            <th class="text-end pe-4">Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {% for ret in returns %}
             <tr>
-              <td><a href="{% url 'orders:return-detail' ret.id %}" class="fw-bold text-decoration-none">{{ ret.return_code }}</a></td>
-              <td><a href="{% url 'orders:order-detail' ret.order.id %}">{{ ret.order.tracking_number }}</a></td>
-              <td>{{ ret.get_reason_display }}</td>
-              <td class="text-danger">{{ ret.return_shipping_fee|floatformat:0 }} đ</td>
-              <td class="text-success fw-bold">{{ ret.refund_amount|floatformat:0 }} đ</td>
-              <td><span class="badge bg-secondary">{{ ret.get_status_display }}</span></td>
-              <td><a href="{% url 'orders:return-detail' ret.id %}" class="btn btn-sm btn-outline-primary">Chi tiết</a></td>
+              <td class="ps-4">
+                <a href="{% url 'orders:return-detail' ret.id %}" class="fw-bold text-decoration-none text-primary">
+                  {{ ret.return_code }}
+                </a>
+                <div class="small text-muted">{{ ret.created_at|date:"d/m/Y H:i" }}</div>
+              </td>
+              <td>
+                <a href="{% url 'orders:order-detail' ret.order.id %}" class="text-decoration-none fw-semibold">
+                  #{{ ret.order.tracking_number }}
+                </a>
+                <div class="small text-muted">{{ ret.order.receiver_name }}</div>
+              </td>
+              <td>
+                <span class="fw-semibold text-dark">{{ ret.get_reason_display }}</span>
+                {% if ret.reason_detail %}
+                  <div class="small text-muted text-truncate" style="max-width: 220px;" title="{{ ret.reason_detail }}">
+                    {{ ret.reason_detail }}
+                  </div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="small text-muted">Tiền hoàn: <strong class="text-success">{{ ret.refund_amount|floatformat:0 }} đ</strong></div>
+                <div class="small text-muted">Cước hoàn: <span class="text-danger">{{ ret.return_shipping_fee|floatformat:0 }} đ</span></div>
+              </td>
+              <td>
+                {% if ret.fee_payer == "SHOP" %}
+                  <span class="badge bg-secondary bg-opacity-25 text-dark fw-semibold">Người gửi (Shop)</span>
+                {% elif ret.fee_payer == "CUSTOMER" %}
+                  <span class="badge bg-info bg-opacity-25 text-dark fw-semibold">Người mua</span>
+                {% else %}
+                  <span class="badge bg-warning bg-opacity-25 text-dark fw-semibold">Đơn vị vận chuyển</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if ret.assigned_driver %}
+                  <div class="d-flex align-items-center gap-1">
+                    <i class="bi bi-person-badge text-primary"></i>
+                    <span class="small fw-semibold">{{ ret.assigned_driver.name|default:ret.assigned_driver.email }}</span>
+                  </div>
+                {% else %}
+                  <span class="small text-muted"><em>Chưa phân công</em></span>
+                {% endif %}
+              </td>
+              <td>
+                {% if ret.status == "REQUESTED" %}
+                  <span class="badge bg-warning text-dark"><i class="bi bi-hourglass me-1"></i>Chờ duyệt</span>
+                {% elif ret.status == "APPROVED" %}
+                  <span class="badge bg-info text-dark"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>
+                {% elif ret.status == "PICKING_UP" %}
+                  <span class="badge bg-primary"><i class="bi bi-box-arrow-in-down me-1"></i>Đang lấy hàng</span>
+                {% elif ret.status == "IN_RETURN_TRANSIT" %}
+                  <span class="badge bg-primary bg-opacity-75"><i class="bi bi-truck me-1"></i>Đang hoàn</span>
+                {% elif ret.status == "RETURNED_TO_SENDER" %}
+                  <span class="badge bg-success"><i class="bi bi-check2-all me-1"></i>Đã hoàn trả</span>
+                {% elif ret.status == "REJECTED" %}
+                  <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ ret.get_status_display }}</span>
+                {% endif %}
+              </td>
+              <td class="text-end pe-4">
+                <div class="btn-group btn-group-sm">
+                  <a href="{% url 'orders:return-detail' ret.id %}" class="btn btn-outline-primary" title="Xem chi tiết">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{% url 'orders:return-print' ret.id %}" class="btn btn-outline-secondary" title="In phiếu RMA" target="_blank">
+                    <i class="bi bi-printer"></i>
+                  </a>
+                </div>
+              </td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="7" class="text-center py-4 text-muted">Chưa có yêu cầu hoàn trả nào được ghi nhận.</td>
+              <td colspan="8" class="text-center py-5">
+                <div class="text-muted">
+                  <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                  <p class="mb-1 fw-semibold">Không tìm thấy yêu cầu hoàn trả nào</p>
+                  <small>Khi có đơn hàng cần thu hồi hoặc hoàn hàng, các bản ghi RMA sẽ hiển thị tại đây.</small>
+                </div>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
@@ -47,4 +263,3 @@
   </div>
 </div>
 {% endblock content %}
-

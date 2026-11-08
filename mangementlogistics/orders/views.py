@@ -771,6 +771,7 @@ def order_return_detail_view(request, return_id: int):
         "orders/return_detail.html",
         {
             "return_obj": order_return,
+            "order_return": order_return,
             "order": order_return.order,
             "is_admin": is_admin,
             "is_driver": is_driver,
@@ -881,6 +882,27 @@ def order_return_action_view(request, return_id: int):
         messages.error(request, "Dữ liệu xử lý không hợp lệ.")
 
     return redirect("orders:return-detail", return_id=return_id)
+
+
+@login_required
+def order_return_print_view(request, return_id: int):
+    """
+    Renders printable RMA return slip (Reverse Logistics Air Waybill).
+    """
+    order_return = order_return_get_by_id(return_id=return_id, user=request.user)
+    if not order_return:
+        messages.error(request, "Không tìm thấy yêu cầu hoàn trả để in phiếu.")
+        return redirect("orders:return-list")
+
+    return render(
+        request,
+        "orders/return_print.html",
+        {
+            "order_return": order_return,
+            "order": order_return.order,
+        },
+    )
+
 
 
 

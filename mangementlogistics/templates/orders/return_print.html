@@ -1,0 +1,181 @@
+{% load static %}<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Phiếu hoàn trả RMA - #{{ order_return.return_code }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #000;
+    }
+    .bill-card {
+      max-width: 750px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 30px;
+      border: 2px dashed #333;
+      border-radius: 8px;
+    }
+    .barcode-box {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+      background: #fafafa;
+    }
+    .barcode-lines {
+      height: 48px;
+      letter-spacing: 3px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .rma-box {
+      border: 2px solid #e0a800;
+      background-color: #fffdf0;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    @media print {
+      body {
+        background-color: #fff;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .bill-card {
+        margin: 0;
+        max-width: 100%;
+        border: 1px solid #000;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Print Controls -->
+  <div class="container text-center my-3 no-print">
+    <button onclick="window.print()" class="btn btn-warning btn-lg px-4 me-2 fw-semibold">
+      <i class="bi bi-printer-fill me-2"></i>In phiếu thu hồi (Print RMA Label)
+    </button>
+    <a href="{% url 'orders:return-detail' order_return.id %}" class="btn btn-outline-secondary btn-lg">
+      <i class="bi bi-arrow-left me-1"></i>Quay lại hồ sơ RMA
+    </a>
+  </div>
+
+  <div class="bill-card shadow-sm">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+      <div>
+        <h4 class="fw-bold mb-0 text-danger">
+          <i class="bi bi-arrow-return-left me-1"></i>MangementLogistics RMA
+        </h4>
+        <small class="text-muted">Trung tâm Xử lý Trả hàng & Reverse Logistics | Hotline: 1900 8888</small>
+      </div>
+      <div class="text-end">
+        <div class="fw-bold fs-6">PHIẾU THU HỒI & CHUYỂN HOÀN BƯU PHẨM</div>
+        <small class="text-muted">Ngày lập: {{ order_return.created_at|date:"d/m/Y H:i" }}</small>
+      </div>
+    </div>
+
+    <!-- Barcode & Return Code -->
+    <div class="barcode-box mb-3">
+      <div class="barcode-lines text-dark">||||| |||| | |||||| |||| | |||||</div>
+      <div class="fs-4 fw-bold tracking-number text-dark mt-1">#{{ order_return.return_code }}</div>
+      <small class="text-muted">Mã RMA quy chiếu đơn hàng gốc: <strong>#{{ order.tracking_number }}</strong></small>
+    </div>
+
+    <!-- Reversal Notice Banner -->
+    <div class="rma-box mb-4">
+      <div class="fw-bold fs-5 text-dark">
+        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+        BƯU PHẨM THU HỒI / CHUYỂN HOÀN (REVERSE LOGISTICS)
+      </div>
+      <div class="small text-muted mt-1">
+        Lý do: <strong>{{ order_return.get_reason_display }}</strong>
+        {% if order_return.reason_detail %} - {{ order_return.reason_detail }}{% endif %}
+      </div>
+    </div>
+
+    <!-- Routing / Pickup & Return Addresses -->
+    <div class="row g-3 mb-4">
+      <!-- Nơi thu hồi hàng -->
+      <div class="col-6">
+        <div class="border p-3 h-100 rounded">
+          <div class="badge bg-secondary mb-2">1. ĐIỂM THU HỒI (TỪ NGƯỜI NHẬN GỐC)</div>
+          <div class="fw-bold fs-6">{{ order.receiver_name }}</div>
+          <div class="fw-semibold text-primary"><i class="bi bi-telephone me-1"></i>{{ order.receiver_phone }}</div>
+          <div class="small mt-1 text-muted">{{ order_return.pickup_address }}</div>
+        </div>
+      </div>
+
+      <!-- Nơi trả về (Shop / Kho gửi) -->
+      <div class="col-6">
+        <div class="border p-3 h-100 rounded">
+          <div class="badge bg-primary mb-2">2. ĐIỂM TRẢ VỀ (SHOP / NGƯỜI GỬI GỐC)</div>
+          <div class="fw-bold fs-6">{{ order.sender_name }}</div>
+          <div class="fw-semibold text-primary"><i class="bi bi-telephone me-1"></i>{{ order.sender_phone }}</div>
+          <div class="small mt-1 text-muted">{{ order_return.return_address }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Financial Breakdown Table -->
+    <table class="table table-bordered mb-4 small">
+      <tbody>
+        <tr>
+          <td class="fw-bold bg-light" style="width: 35%;">Số tiền hoàn lại khách (Refund):</td>
+          <td class="fw-bold text-success fs-6">{{ order_return.refund_amount|floatformat:0 }} VNĐ</td>
+        </tr>
+        <tr>
+          <td class="fw-bold bg-light">Cước phí vận chuyển hoàn:</td>
+          <td class="fw-bold text-danger">{{ order_return.return_shipping_fee|floatformat:0 }} VNĐ</td>
+        </tr>
+        <tr>
+          <td class="fw-bold bg-light">Đơn vị chi trả cước hoàn:</td>
+          <td class="fw-semibold">{{ order_return.get_fee_payer_display }}</td>
+        </tr>
+        <tr>
+          <td class="fw-bold bg-light">Tài xế phân công thu hồi:</td>
+          <td>
+            {% if order_return.assigned_driver %}
+              {{ order_return.assigned_driver.name|default:order_return.assigned_driver.email }}
+            {% else %}
+              <em>Chưa điều phối</em>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Signature Boxes -->
+    <div class="row text-center mt-4 pt-2">
+      <div class="col-4">
+        <div class="fw-bold small">NGƯỜI TRẢ HÀNG</div>
+        <div class="text-muted small fst-italic mb-5">(Ký và ghi rõ họ tên)</div>
+        <div class="border-top pt-1 small text-muted">Bàn giao nguyên trạng</div>
+      </div>
+      <div class="col-4">
+        <div class="fw-bold small">TÀI XẾ THU HỒI</div>
+        <div class="text-muted small fst-italic mb-5">(Ký và xác nhận kiểm đếm)</div>
+        <div class="border-top pt-1 small text-muted">Đã kiểm ngoại quan</div>
+      </div>
+      <div class="col-4">
+        <div class="fw-bold small">SHOP / KHO TIẾP NHẬN</div>
+        <div class="text-muted small fst-italic mb-5">(Ký nhận bưu kiện hoàn)</div>
+        <div class="border-top pt-1 small text-muted">Đã nhận đủ bưu phẩm</div>
+      </div>
+    </div>
+
+    <!-- Footer Note -->
+    <div class="border-top pt-3 mt-4 text-center text-muted small">
+      Phiếu RMA được hệ thống tự động sinh bởi MangementLogistics. Mọi thắc mắc vui lòng liên hệ 1900 8888.
+    </div>
+  </div>
+</body>
+</html>
+
