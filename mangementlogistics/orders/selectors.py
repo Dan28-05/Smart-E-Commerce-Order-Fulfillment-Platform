@@ -7,10 +7,12 @@ from mangementlogistics.orders.constants import (
     CODReconciliationStatus,
     OrderPaymentMethod,
     OrderStatus,
+    ReturnStatus,
 )
 from mangementlogistics.orders.models import (
     CODReconciliation,
     Order,
+    OrderReturn,
     OrderTrackingHistory,
 )
 from mangementlogistics.users.constants import UserRole
@@ -194,5 +196,110 @@ def cod_reconciliation_get_summary_stats(
         "unreconciled_orders_count": unreconciled_orders_count,
         "unreconciled_cod_total": unreconciled_cod_total,
     }
+
+
+def order_return_list(
+    *,
+    user: User,
+    status: str | None = None,
+    search: str | None = None,
+) -> QuerySet[OrderReturn]:
+    """
+    Returns filtered queryset of order return requests based on user role and search parameters.
+    """
+    qs = OrderReturn.objects.select_related("order", "requested_by", "assigned_driver", "order__customer").all()
+
+    if not user.is_superuser and getattr(user, "role", None) != UserRole.ADMIN:
+        user_role = getattr(user, "role", None)
+        if user_role == UserRole.DRIVER:
+            qs = qs.filter(assigned_driver=user)
+        else:
+            qs = qs.filter(Q(requested_by=user) | Q(order__customer=user))
+
+    if status:
+        qs = qs.filter(status=status)
+
+    if search:
+        query = search.strip()
+        qs = qs.filter(
+            Q(return_code__icontains=query)
+            | Q(order__tracking_number__icontains=query)
+            | Q(order__receiver_name__icontains=query)
+            | Q(order__sender_name__icontains=query)
+            | Q(requested_by__email__icontains=query)
+            | Q(reason_detail__icontains=query)
+        )
+
+    return qs.order_by("-created_at")
+
+
+def order_return_get_by_id(
+    *,
+    return_id: int,
+    user: User,
+) -> OrderReturn | None:
+    """
+    Retrieves an order return by ID with role-based permission verification.
+    """
+    try:
+        ret = (
+            OrderReturn.objects.select_related("order", "requested_by", "assigned_driver", "order__customer")
+            .get(id=return_id)
+        )
+    except OrderReturn.DoesNotExist:
+        return None
+
+    if not user.is_superuser and getattr(user, "role", None) != UserRole.ADMIN:
+        user_role = getattr(user, "role", None)
+        if user_role == UserRole.DRIVER and ret.assigned_driver_id != user.id:
+            return None
+        if user_role != UserRole.DRIVER and ret.requested_by_id != user.id and ret.order.customer_id != user.id:
+            return None
+
+    return ret
+
+
+def order_return_get_by_code(
+    *,
+    return_code: str,
+) -> OrderReturn | None:
+    """
+    Lookup order return by unique return code.
+    """
+    return (
+        OrderReturn.objects.select_related("order", "requested_by", "assigned_driver", "order__customer")
+        .filter(return_code__iexact=return_code.strip())
+        .first()
+    )
+
+
+def order_return_get_summary_stats(
+    *,
+    user: User,
+) -> dict:
+    """
+    Computes key reverse logistics KPIs and refund totals.
+    """
+    qs = order_return_list(user=user)
+
+    total_returns = qs.count()
+    pending_requested = qs.filter(status=ReturnStatus.REQUESTED).count()
+    in_transit_returns = qs.filter(
+        status__in=[ReturnStatus.APPROVED, ReturnStatus.PICKING_UP, ReturnStatus.IN_RETURN_TRANSIT]
+    ).count()
+    completed_returns = qs.filter(status=ReturnStatus.RETURNED_TO_SENDER).count()
+
+    total_refund_amount = qs.filter(
+        status__in=[ReturnStatus.APPROVED, ReturnStatus.PICKING_UP, ReturnStatus.IN_RETURN_TRANSIT, ReturnStatus.RETURNED_TO_SENDER]
+    ).aggregate(total=Sum("refund_amount"))["total"] or Decimal("0.00")
+
+    return {
+        "total_returns": total_returns,
+        "pending_requested": pending_requested,
+        "in_transit_returns": in_transit_returns,
+        "completed_returns": completed_returns,
+        "total_refund_amount": total_refund_amount,
+    }
+
 
 

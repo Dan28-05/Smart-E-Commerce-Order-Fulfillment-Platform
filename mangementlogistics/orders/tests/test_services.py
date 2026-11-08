@@ -27,6 +27,9 @@ from mangementlogistics.orders.models import (
 from mangementlogistics.orders.selectors import (
     cod_reconciliation_get_summary_stats,
     cod_reconciliation_list,
+    order_return_get_by_id,
+    order_return_get_summary_stats,
+    order_return_list,
 )
 from mangementlogistics.orders.services import (
     calculate_shipping_rates,
@@ -756,6 +759,77 @@ def test_order_return_driver_status_pipeline(customer_user, admin_user, driver_u
     ret.refresh_from_db()
     assert ret.status == ReturnStatus.RETURNED_TO_SENDER
     assert ret.completed_at is not None
+
+
+def test_order_return_selectors_filtering_and_stats(customer_user, admin_user, driver_user):
+    """
+    Test order return selectors for role-based scoping, status filtering, search, and summary stats.
+    """
+    order1 = order_create(
+        customer=customer_user,
+        sender_name="Sender Shop A",
+        sender_phone="0901",
+        sender_address="Hanoi",
+        receiver_name="Receiver A",
+        receiver_phone="0902",
+        receiver_address="HCM",
+    )
+    ret1 = order_return_create(
+        order=order1,
+        actor=customer_user,
+        reason=ReturnReason.DAMAGED,
+        reason_detail="Hàng móp méo",
+        refund_amount=Decimal("200000.00"),
+    )
+    order_return_approve(order_return=ret1, actor=admin_user, driver_id=driver_user.id)
+
+    order2 = order_create(
+        customer=customer_user,
+        sender_name="Sender Shop B",
+        sender_phone="0903",
+        sender_address="Hanoi",
+        receiver_name="Receiver B",
+        receiver_phone="0904",
+        receiver_address="Da Nang",
+    )
+    ret2 = order_return_create(
+        order=order2,
+        actor=customer_user,
+        reason=ReturnReason.CUSTOMER_REFUSED,
+        reason_detail="Người nhận không có nhà",
+    )
+
+    # 1. Customer selector list
+    cust_list = order_return_list(user=customer_user)
+    assert cust_list.count() == 2
+
+    # 2. Driver selector list (only assigned ret1)
+    driver_list = order_return_list(user=driver_user)
+    assert driver_list.count() == 1
+    assert driver_list.first().id == ret1.id
+
+    # 3. Search filter
+    search_res = order_return_list(user=admin_user, search="móp méo")
+    assert search_res.count() == 1
+    assert search_res.first().id == ret1.id
+
+    # 4. Status filter
+    pending_list = order_return_list(user=admin_user, status=ReturnStatus.REQUESTED)
+    assert pending_list.count() == 1
+    assert pending_list.first().id == ret2.id
+
+    # 5. Get by ID
+    found_ret = order_return_get_by_id(return_id=ret1.id, user=customer_user)
+    assert found_ret is not None
+    assert found_ret.id == ret1.id
+
+    # 6. Summary stats
+    stats = order_return_get_summary_stats(user=admin_user)
+    assert stats["total_returns"] == 2
+    assert stats["pending_requested"] == 1
+    assert stats["in_transit_returns"] == 1
+    assert stats["total_refund_amount"] == Decimal("200000.00")
+
 
 
 
