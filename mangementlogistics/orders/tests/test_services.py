@@ -831,6 +831,124 @@ def test_order_return_selectors_filtering_and_stats(customer_user, admin_user, d
     assert stats["total_refund_amount"] == Decimal("200000.00")
 
 
+def test_order_return_full_reverse_logistics_e2e_flow(customer_user, admin_user, driver_user):
+    """
+    End-to-End test covering the complete reverse logistics lifecycle:
+    Order Creation -> Delivery -> Return Request -> Approval & Driver Assignment ->
+    Pickup -> In Transit -> Master Order Status Synchronization -> Completed Return to Sender.
+    """
+    # Step 1: Create master order
+    order = order_create(
+        customer=customer_user,
+        sender_name="Tech Store Hanoi",
+        sender_phone="0911223344",
+        sender_address="123 Cau Giay, Hanoi",
+        receiver_name="Nguyen Van A",
+        receiver_phone="0988776655",
+        receiver_address="456 Nguyen Trai, Q1, HCM",
+        weight=Decimal("1.5"),
+        cod_amount=Decimal("600000.00"),
+        shipping_fee=Decimal("35000.00"),
+    )
+    assert order.status == OrderStatus.PENDING
+
+    # Step 2: Forward delivery cycle
+    order_update_status(
+        order=order,
+        new_status=OrderStatus.CONFIRMED,
+        actor=admin_user,
+        driver_id=driver_user.id,
+        location="Trung tâm điều phối",
+        note="Phân công tài xế giao",
+    )
+    order_update_status(
+        order=order,
+        new_status=OrderStatus.PICKED_UP,
+        actor=driver_user,
+        location="Kho Ha Noi",
+        note="Đã tiếp nhận hàng",
+    )
+    order_update_status(
+        order=order,
+        new_status=OrderStatus.DELIVERED,
+        actor=driver_user,
+        location="Quan 1, HCM",
+        note="Giao thành công cho khách hàng",
+    )
+    order.refresh_from_db()
+    assert order.status == OrderStatus.DELIVERED
+
+    # Step 3: Initiate reverse logistics (Return Request)
+    order_return = order_return_create(
+        order=order,
+        actor=customer_user,
+        reason=ReturnReason.DAMAGED,
+        reason_detail="Sản phẩm bị lỗi nguồn không hoạt động",
+        return_shipping_fee=Decimal("35000.00"),
+        refund_amount=Decimal("600000.00"),
+        fee_payer=ReturnFeePayer.SHOP,
+        pickup_address=order.receiver_address,
+        return_address=order.sender_address,
+    )
+    assert order_return.status == ReturnStatus.REQUESTED
+    assert order_return.return_code.startswith("RET-")
+
+    # Step 4: Admin reviews and approves return
+    order_return_approve(
+        order_return=order_return,
+        actor=admin_user,
+        driver_id=driver_user.id,
+        notes="Chấp nhận yêu cầu đổi trả bảo hành",
+    )
+    order_return.refresh_from_db()
+    assert order_return.status == ReturnStatus.APPROVED
+    assert order_return.assigned_driver_id == driver_user.id
+    assert order_return.approved_at is not None
+
+    # Step 5: Driver picks up the return package
+    order_return_update_status(
+        order_return=order_return,
+        new_status=ReturnStatus.PICKING_UP,
+        actor=driver_user,
+        location="Quan 1, HCM",
+        note="Tài xế đã đến lấy bưu phẩm hoàn",
+    )
+    order_return.refresh_from_db()
+    assert order_return.status == ReturnStatus.PICKING_UP
+
+    # Step 6: Driver transfers package into transit (Master order status syncs to RETURNED)
+    order_return_update_status(
+        order_return=order_return,
+        new_status=ReturnStatus.IN_RETURN_TRANSIT,
+        actor=driver_user,
+        location="Trung tâm khai thác miền Nam",
+        note="Đang vận chuyển hoàn về kho Hà Nội",
+    )
+    order_return.refresh_from_db()
+    order.refresh_from_db()
+    assert order_return.status == ReturnStatus.IN_RETURN_TRANSIT
+    assert order.status == OrderStatus.RETURNED
+
+    # Step 7: Completed delivery back to sender
+    order_return_update_status(
+        order_return=order_return,
+        new_status=ReturnStatus.RETURNED_TO_SENDER,
+        actor=driver_user,
+        location="123 Cau Giay, Hanoi",
+        note="Đã bàn giao bưu kiện hoàn trả cho shop",
+    )
+    order_return.refresh_from_db()
+    assert order_return.status == ReturnStatus.RETURNED_TO_SENDER
+    assert order_return.completed_at is not None
+
+    # Step 8: Verify KPI summary reflects completed reverse logistics
+    final_stats = order_return_get_summary_stats(user=customer_user)
+    assert final_stats["total_returns"] >= 1
+    assert final_stats["completed_returns"] >= 1
+    assert final_stats["total_refund_amount"] >= Decimal("600000.00")
+
+
+
 
 
 

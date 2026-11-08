@@ -30,6 +30,11 @@
       <a href="{% url 'orders:order-print' order.id %}" target="_blank" class="btn btn-outline-dark">
         <i class="bi bi-printer me-1"></i>In phiếu gửi
       </a>
+      {% if order.status != "CANCELLED" and order.status != "RETURNED" %}
+        <a href="{% url 'orders:order-return-create' order.id %}" class="btn btn-outline-warning text-dark fw-semibold">
+          <i class="bi bi-arrow-return-left me-1"></i>Yêu cầu hoàn trả (RMA)
+        </a>
+      {% endif %}
       <a href="{% url 'orders:order-list' %}" class="btn btn-outline-secondary">Quay lại</a>
       {% if can_cancel %}
         <a href="{% url 'orders:order-update' order.id %}" class="btn btn-outline-primary">Chỉnh sửa</a>
@@ -37,6 +42,28 @@
       {% endif %}
     </div>
   </div>
+
+  <!-- Thông báo trạng thái hoàn trả nếu có -->
+  {% if order.returns.exists %}
+    {% with active_return=order.returns.first %}
+    <div class="alert alert-warning border-0 shadow-sm rounded-4 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-arrow-return-left fs-3 me-3 text-warning"></i>
+        <div>
+          <h6 class="fw-bold mb-1">Đơn hàng này có yêu cầu hoàn trả: {{ active_return.return_code }}</h6>
+          <span class="small text-muted">
+            Trạng thái xử lý: <strong>{{ active_return.get_status_display }}</strong>
+            | Tiền bồi hoàn: <strong class="text-success">{{ active_return.refund_amount|floatformat:0 }} đ</strong>
+            | Cước phí hoàn: <strong class="text-danger">{{ active_return.return_shipping_fee|floatformat:0 }} đ</strong>
+          </span>
+        </div>
+      </div>
+      <a href="{% url 'orders:return-detail' active_return.id %}" class="btn btn-warning btn-sm rounded-pill px-3 fw-semibold">
+        Xem chi tiết hồ sơ RMA <i class="bi bi-arrow-right ms-1"></i>
+      </a>
+    </div>
+    {% endwith %}
+  {% endif %}
 
   <div class="row g-4">
     <!-- CỘT TRÁI: THÔNG TIN CHI TIẾT -->

@@ -71,7 +71,7 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link text-white-50 {% if 'orders' in request.resolver_match.namespace and request.resolver_match.url_name not in 'order-track,fee-estimator' %}active text-white fw-semibold{% endif %}" href="{% url 'orders:order-list' %}">
+                <a class="nav-link text-white-50 {% if 'orders' in request.resolver_match.namespace and request.resolver_match.url_name not in 'order-track,fee-estimator,return-list,return-detail,return-print,order-return-create' and 'reconciliation' not in request.resolver_match.url_name %}active text-white fw-semibold{% endif %}" href="{% url 'orders:order-list' %}">
                   <i class="bi bi-box-seam me-1"></i>Quản lý Đơn hàng
                 </a>
               </li>
@@ -89,6 +89,13 @@
               <li class="nav-item">
                 <a class="nav-link text-white-50 {% if 'reconciliation' in request.resolver_match.url_name %}active text-white fw-semibold{% endif %}" href="{% url 'orders:reconciliation-list' %}">
                   <i class="bi bi-wallet2 me-1"></i>Đối soát COD
+                </a>
+              </li>
+              {% endif %}
+              {% if request.user.is_authenticated %}
+              <li class="nav-item">
+                <a class="nav-link text-white-50 {% if 'return' in request.resolver_match.url_name %}active text-white fw-semibold{% endif %}" href="{% url 'orders:return-list' %}">
+                  <i class="bi bi-arrow-return-left me-1"></i>Đơn hoàn trả (RMA)
                 </a>
               </li>
               {% endif %}
@@ -130,6 +137,7 @@
                     {% if request.user.role != "DRIVER" %}
                     <li><a class="dropdown-item" href="{% url 'orders:reconciliation-list' %}"><i class="bi bi-wallet2 me-2 text-warning"></i>Đối soát COD</a></li>
                     {% endif %}
+                    <li><a class="dropdown-item" href="{% url 'orders:return-list' %}"><i class="bi bi-arrow-return-left me-2 text-danger"></i>Đơn hoàn trả (RMA)</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="{% url 'users:password-change' %}"><i class="bi bi-key me-2 text-warning"></i>Đổi mật khẩu</a></li>
                     <li>
@@ -200,6 +208,7 @@
             <h6 class="text-white fw-semibold mb-3">Dịch vụ</h6>
             <ul class="list-unstyled small mb-0">
               <li class="mb-2"><a href="{% url 'orders:reconciliation-list' %}" class="text-white-50 text-decoration-none hover-white">Đối soát COD</a></li>
+              <li class="mb-2"><a href="{% url 'orders:return-list' %}" class="text-white-50 text-decoration-none hover-white">Quản lý Hoàn trả (RMA)</a></li>
               <li class="mb-2"><a href="{% url 'orders:fee-estimator' %}" class="text-white-50 text-decoration-none hover-white">Ước tính cước phí</a></li>
               <li class="mb-2"><a href="{% url 'orders:order-track' %}" class="text-white-50 text-decoration-none hover-white">Tra cứu bưu kiện</a></li>
               <li class="mb-2"><a href="{% url 'orders:order-create' %}" class="text-white-50 text-decoration-none hover-white">Tạo đơn gửi hàng</a></li>
