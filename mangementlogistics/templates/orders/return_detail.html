@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Phiếu trả hàng {{ return_obj.return_code }} - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1">Phiếu yêu cầu hoàn trả #{{ return_obj.return_code }}</h2>
+      <p class="text-muted mb-0">Đơn hàng gốc: <a href="{% url 'orders:order-detail' order.id %}">{{ order.tracking_number }}</a></p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'orders:return-list' %}" class="btn btn-outline-secondary rounded-pill">Quay lại danh sách</a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <span class="text-muted small">Lý do:</span>
+        <div class="fw-bold">{{ return_obj.get_reason_display }}</div>
+      </div>
+      <div class="col-md-4">
+        <span class="text-muted small">Trạng thái:</span>
+        <div><span class="badge bg-primary">{{ return_obj.get_status_display }}</span></div>
+      </div>
+      <div class="col-md-4">
+        <span class="text-muted small">Số tiền hoàn trả:</span>
+        <div class="fw-bold text-success">{{ return_obj.refund_amount|floatformat:0 }} đ</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+

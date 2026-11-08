@@ -4,9 +4,12 @@ from django import forms
 from mangementlogistics.orders.constants import (
     OrderPaymentMethod,
     OrderStatus,
+    ReturnFeePayer,
+    ReturnReason,
+    ReturnStatus,
     VIETNAM_PROVINCES,
 )
-from mangementlogistics.orders.models import Order
+from mangementlogistics.orders.models import Order, OrderReturn
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
 
@@ -260,5 +263,85 @@ class CODReconciliationProcessForm(forms.Form):
             attrs={"class": "form-control", "placeholder": "Ví dụ: Mã GD VCB 987654321..."}
         ),
     )
+
+
+class OrderReturnCreateForm(forms.ModelForm):
+    """
+    Form for customers or admins to create a reverse logistics return request.
+    """
+    class Meta:
+        model = OrderReturn
+        fields = [
+            "reason",
+            "reason_detail",
+            "fee_payer",
+            "return_shipping_fee",
+            "refund_amount",
+            "return_address",
+            "pickup_address",
+            "notes",
+        ]
+        labels = {
+            "reason": "Lý do hoàn trả",
+            "reason_detail": "Mô tả chi tiết nguyên nhân",
+            "fee_payer": "Bên chịu cước chuyển hoàn",
+            "return_shipping_fee": "Cước phí chuyển hoàn (VNĐ)",
+            "refund_amount": "Số tiền hoàn lại cho người mua (VNĐ)",
+            "return_address": "Địa chỉ nhận lại hàng (Kho / Shop)",
+            "pickup_address": "Địa chỉ lấy hàng hoàn (Khách hàng)",
+            "notes": "Ghi chú bổ sung",
+        }
+        widgets = {
+            "reason": forms.Select(attrs={"class": "form-select"}),
+            "reason_detail": forms.Textarea(
+                attrs={"class": "form-control", "rows": 3, "placeholder": "Vui lòng nêu rõ lý do bưu kiện bị hoàn hoặc yêu cầu trả hàng..."}
+            ),
+            "fee_payer": forms.Select(attrs={"class": "form-select"}),
+            "return_shipping_fee": forms.NumberInput(attrs={"class": "form-control", "min": "0", "step": "1000"}),
+            "refund_amount": forms.NumberInput(attrs={"class": "form-control", "min": "0", "step": "1000"}),
+            "return_address": forms.TextInput(attrs={"class": "form-control", "placeholder": "Địa chỉ kho/shop nhận lại hàng..."}),
+            "pickup_address": forms.TextInput(attrs={"class": "form-control", "placeholder": "Địa chỉ thu hồi hàng từ người mua..."}),
+            "notes": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ghi chú thêm cho điều phối viên..."}),
+        }
+
+
+class OrderReturnActionForm(forms.Form):
+    """
+    Form for administrator or driver to process return workflow actions.
+    """
+    ACTION_CHOICES = [
+        ("APPROVE", "Phê duyệt yêu cầu hoàn trả"),
+        ("REJECT", "Từ chối yêu cầu hoàn trả"),
+        ("UPDATE_STATUS", "Cập nhật tiến trình vận chuyển hoàn"),
+    ]
+    action = forms.ChoiceField(
+        choices=ACTION_CHOICES,
+        label="Thao tác xử lý",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    status = forms.ChoiceField(
+        choices=ReturnStatus.choices,
+        required=False,
+        label="Trạng thái cập nhật mới",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    driver = forms.ModelChoiceField(
+        queryset=User.objects.filter(role=UserRole.DRIVER, is_active=True),
+        required=False,
+        label="Phân công tài xế thu hồi",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="-- Chọn tài xế --",
+    )
+    location = forms.CharField(
+        required=False,
+        label="Vị trí / Bưu cục hiện tại",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ví dụ: Hub hoàn trả Tân Bình"}),
+    )
+    notes = forms.CharField(
+        required=False,
+        label="Ghi chú xử lý / Lý do",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ghi chú tiến trình..."}),
+    )
+
 
 

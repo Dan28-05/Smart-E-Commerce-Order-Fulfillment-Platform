@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý Trả hàng (RMA) - MangementLogistics{% endblock title %}
+
+{% block content %}
+<div class="py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1">Quản lý Đơn hàng Hoàn trả (RMA)</h2>
+      <p class="text-muted mb-0">Theo dõi tiến trình thu hồi bưu phẩm và xử lý khiếu nại hoàn trả.</p>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th>Mã trả hàng</th>
+            <th>Mã đơn gốc</th>
+            <th>Lý do</th>
+            <th>Phí hoàn</th>
+            <th>Số tiền hoàn</th>
+            <th>Trạng thái</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ret in returns %}
+            <tr>
+              <td><a href="{% url 'orders:return-detail' ret.id %}" class="fw-bold text-decoration-none">{{ ret.return_code }}</a></td>
+              <td><a href="{% url 'orders:order-detail' ret.order.id %}">{{ ret.order.tracking_number }}</a></td>
+              <td>{{ ret.get_reason_display }}</td>
+              <td class="text-danger">{{ ret.return_shipping_fee|floatformat:0 }} đ</td>
+              <td class="text-success fw-bold">{{ ret.refund_amount|floatformat:0 }} đ</td>
+              <td><span class="badge bg-secondary">{{ ret.get_status_display }}</span></td>
+              <td><a href="{% url 'orders:return-detail' ret.id %}" class="btn btn-sm btn-outline-primary">Chi tiết</a></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">Chưa có yêu cầu hoàn trả nào được ghi nhận.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+

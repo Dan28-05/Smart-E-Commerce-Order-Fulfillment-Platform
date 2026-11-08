@@ -8,6 +8,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from mangementlogistics.orders.constants import (
     CODReconciliationStatus,
+    OrderStatus,
+    ReturnFeePayer,
+    ReturnReason,
+    ReturnStatus,
     VIETNAM_PROVINCES,
 )
 from mangementlogistics.orders.exceptions import (
@@ -15,6 +19,7 @@ from mangementlogistics.orders.exceptions import (
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
+    OrderReturnError,
 )
 from mangementlogistics.orders.forms import (
     CODReconciliationGenerateForm,
@@ -22,11 +27,17 @@ from mangementlogistics.orders.forms import (
     OrderCancelForm,
     OrderCheckpointForm,
     OrderCreateForm,
+    OrderReturnActionForm,
+    OrderReturnCreateForm,
     OrderStatusUpdateForm,
     OrderUpdateForm,
     ShippingFeeEstimatorForm,
 )
-from mangementlogistics.orders.models import CODReconciliation, Order
+from mangementlogistics.orders.models import (
+    CODReconciliation,
+    Order,
+    OrderReturn,
+)
 from mangementlogistics.orders.selectors import (
     cod_reconciliation_get_by_id,
     cod_reconciliation_get_eligible_orders,
@@ -36,6 +47,9 @@ from mangementlogistics.orders.selectors import (
     order_get_by_tracking_number,
     order_get_tracking_history,
     order_list,
+    order_return_get_by_id,
+    order_return_get_summary_stats,
+    order_return_list,
 )
 from mangementlogistics.orders.services import (
     calculate_shipping_rates,
@@ -46,6 +60,10 @@ from mangementlogistics.orders.services import (
     order_cancel,
     order_create,
     order_delete,
+    order_return_approve,
+    order_return_create,
+    order_return_reject,
+    order_return_update_status,
     order_update,
     order_update_status,
 )
@@ -692,6 +710,178 @@ def cod_reconciliation_export_csv_view(request, reconciliation_id: int):
     ])
 
     return response
+
+
+@login_required
+def order_return_list_view(request):
+    """
+    Renders the reverse logistics list of return requests with status filtering, search and KPI stats.
+    """
+    status_filter = request.GET.get("status") or None
+    search_query = request.GET.get("search") or None
+
+    returns = order_return_list(
+        user=request.user,
+        status=status_filter,
+        search=search_query,
+    )
+    summary_stats = order_return_get_summary_stats(user=request.user)
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+    is_driver = getattr(request.user, "role", None) == UserRole.DRIVER
+
+    return render(
+        request,
+        "orders/return_list.html",
+        {
+            "returns": returns,
+            "selected_status": status_filter,
+            "search_query": search_query or "",
+            "summary_stats": summary_stats,
+            "is_admin": is_admin,
+            "is_driver": is_driver,
+            "status_choices": ReturnStatus.choices,
+        },
+    )
+
+
+@login_required
+def order_return_detail_view(request, return_id: int):
+    """
+    Renders full details of an order return request including tracking timeline and action form.
+    """
+    order_return = order_return_get_by_id(return_id=return_id, user=request.user)
+    if not order_return:
+        messages.error(request, "Không tìm thấy yêu cầu hoàn trả hoặc bạn không có quyền truy cập.")
+        return redirect("orders:return-list")
+
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+    is_driver = getattr(request.user, "role", None) == UserRole.DRIVER and order_return.assigned_driver_id == request.user.id
+
+    action_form = None
+    if is_admin or is_driver:
+        action_form = OrderReturnActionForm(
+            initial={
+                "status": order_return.status,
+                "driver": order_return.assigned_driver,
+            }
+        )
+
+    return render(
+        request,
+        "orders/return_detail.html",
+        {
+            "return_obj": order_return,
+            "order": order_return.order,
+            "is_admin": is_admin,
+            "is_driver": is_driver,
+            "action_form": action_form,
+        },
+    )
+
+
+@login_required
+def order_return_create_view(request, order_id: int):
+    """
+    Renders and processes the form to create a reverse logistics return request for a specific order.
+    """
+    order = order_get_by_id(order_id=order_id, user=request.user)
+    if not order:
+        messages.error(request, "Không tìm thấy đơn hàng để yêu cầu hoàn trả.")
+        return redirect("orders:order-list")
+
+    if request.method == "POST":
+        form = OrderReturnCreateForm(request.POST)
+        if form.is_valid():
+            try:
+                order_return = order_return_create(
+                    order=order,
+                    actor=request.user,
+                    **form.cleaned_data,
+                )
+                messages.success(
+                    request,
+                    f"Tạo yêu cầu hoàn trả {order_return.return_code} thành công! Hệ thống đang tiếp nhận xử lý.",
+                )
+                return redirect("orders:return-detail", return_id=order_return.id)
+            except (OrderReturnError, OrderPermissionDeniedError) as exc:
+                messages.error(request, str(exc))
+    else:
+        # Initial defaults from the master order
+        initial_data = {
+            "return_address": order.sender_address,
+            "pickup_address": order.receiver_address,
+            "return_shipping_fee": order.shipping_fee,
+            "refund_amount": order.cod_amount if order.status == OrderStatus.DELIVERED else 0,
+            "fee_payer": ReturnFeePayer.SHOP,
+        }
+        form = OrderReturnCreateForm(initial=initial_data)
+
+    return render(
+        request,
+        "orders/return_form.html",
+        {
+            "form": form,
+            "order": order,
+        },
+    )
+
+
+@login_required
+def order_return_action_view(request, return_id: int):
+    """
+    Processes administrative or driver actions on an order return (approve, reject, update status).
+    """
+    if request.method != "POST":
+        return redirect("orders:return-detail", return_id=return_id)
+
+    order_return = order_return_get_by_id(return_id=return_id, user=request.user)
+    if not order_return:
+        messages.error(request, "Không tìm thấy yêu cầu hoàn trả.")
+        return redirect("orders:return-list")
+
+    form = OrderReturnActionForm(request.POST)
+    if form.is_valid():
+        action = form.cleaned_data["action"]
+        notes = form.cleaned_data.get("notes", "")
+        driver = form.cleaned_data.get("driver")
+        location = form.cleaned_data.get("location", "")
+        new_status = form.cleaned_data.get("status")
+
+        try:
+            if action == "APPROVE":
+                order_return_approve(
+                    order_return=order_return,
+                    actor=request.user,
+                    driver_id=driver.id if driver else None,
+                    notes=notes,
+                )
+                messages.success(request, f"Đã duyệt yêu cầu hoàn trả {order_return.return_code} thành công!")
+            elif action == "REJECT":
+                order_return_reject(
+                    order_return=order_return,
+                    actor=request.user,
+                    reason=notes,
+                )
+                messages.success(request, f"Đã từ chối yêu cầu hoàn trả {order_return.return_code}!")
+            elif action == "UPDATE_STATUS":
+                if not new_status:
+                    messages.error(request, "Vui lòng chọn trạng thái mới cần cập nhật.")
+                    return redirect("orders:return-detail", return_id=return_id)
+                order_return_update_status(
+                    order_return=order_return,
+                    new_status=new_status,
+                    actor=request.user,
+                    location=location,
+                    note=notes,
+                )
+                messages.success(request, f"Cập nhật tiến trình trả hàng thành công sang: {order_return.get_status_display()}!")
+        except (OrderReturnError, OrderPermissionDeniedError, DriverAssignmentError) as exc:
+            messages.error(request, str(exc))
+    else:
+        messages.error(request, "Dữ liệu xử lý không hợp lệ.")
+
+    return redirect("orders:return-detail", return_id=return_id)
+
 
 
 

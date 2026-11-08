@@ -9,6 +9,9 @@ from mangementlogistics.orders.constants import (
     CODReconciliationStatus,
     OrderPaymentMethod,
     OrderStatus,
+    ReturnFeePayer,
+    ReturnReason,
+    ReturnStatus,
 )
 from mangementlogistics.orders.services import (
     cod_reconciliation_generate,
@@ -288,6 +291,108 @@ def test_cod_reconciliation_views_flow(client, customer_user, admin_user):
     assert order.tracking_number in csv_text
     assert "BẢNG KÊ ĐỐI SOÁT" in csv_text
     assert "TỔNG CỘNG" in csv_text
+
+
+@pytest.fixture
+def driver_user():
+    return User.objects.create_user(
+        username="driver_view@example.com",
+        email="driver_view@example.com",
+        password="DriverPassword123!",
+        name="Driver View User",
+        role=UserRole.DRIVER,
+    )
+
+
+def test_order_return_views_flow(client, customer_user, admin_user, driver_user):
+    """
+    Test viewing return list, creating return request, detail view, and admin/driver actions.
+    """
+    # 1. Unauthenticated redirects to login
+    list_url = reverse("orders:return-list")
+    resp_unauth = client.get(list_url)
+    assert resp_unauth.status_code == 302
+    assert "/users/login/" in resp_unauth.url
+
+    # 2. Authenticated GET return list
+    client.force_login(customer_user)
+    resp_list = client.get(list_url)
+    assert resp_list.status_code == 200
+    assert "Quản lý Đơn hàng Hoàn trả (RMA)" in resp_list.content.decode("utf-8")
+
+    # 3. Create an order for return
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender RMA",
+        sender_phone="0911",
+        sender_address="Hanoi Hub",
+        receiver_name="Receiver RMA",
+        receiver_phone="0922",
+        receiver_address="HCM Hub",
+        cod_amount=Decimal("400000.00"),
+        shipping_fee=Decimal("30000.00"),
+    )
+
+    # 4. GET return create form
+    create_url = reverse("orders:order-return-create", kwargs={"order_id": order.id})
+    resp_create_get = client.get(create_url)
+    assert resp_create_get.status_code == 200
+    assert "Yêu cầu hoàn trả bưu kiện" in resp_create_get.content.decode("utf-8")
+
+    # 5. POST return create form
+    create_payload = {
+        "reason": ReturnReason.WRONG_ITEM,
+        "reason_detail": "Khách nhận sai size quần áo",
+        "fee_payer": ReturnFeePayer.SHOP,
+        "return_shipping_fee": "30000",
+        "refund_amount": "400000",
+        "return_address": "Hanoi Hub",
+        "pickup_address": "HCM Hub",
+        "notes": "Hàng nguyên tem",
+    }
+    resp_create_post = client.post(create_url, data=create_payload, follow=True)
+    assert resp_create_post.status_code == 200
+    content = resp_create_post.content.decode("utf-8")
+    assert "Phiếu yêu cầu hoàn trả" in content
+
+    # Get created return object
+    ret = order.returns.first()
+    assert ret is not None
+    assert ret.status == ReturnStatus.REQUESTED
+
+    # 6. Admin approves return and assigns driver
+    client.force_login(admin_user)
+    action_url = reverse("orders:return-action", kwargs={"return_id": ret.id})
+    resp_approve = client.post(
+        action_url,
+        data={
+            "action": "APPROVE",
+            "driver": driver_user.id,
+            "notes": "Chấp thuận thu hồi về kho",
+        },
+        follow=True,
+    )
+    assert resp_approve.status_code == 200
+    ret.refresh_from_db()
+    assert ret.status == ReturnStatus.APPROVED
+    assert ret.assigned_driver_id == driver_user.id
+
+    # 7. Driver updates status to PICKING_UP
+    client.force_login(driver_user)
+    resp_driver_update = client.post(
+        action_url,
+        data={
+            "action": "UPDATE_STATUS",
+            "status": ReturnStatus.PICKING_UP,
+            "location": "Bưu cục phát",
+            "notes": "Đang qua lấy hàng",
+        },
+        follow=True,
+    )
+    assert resp_driver_update.status_code == 200
+    ret.refresh_from_db()
+    assert ret.status == ReturnStatus.PICKING_UP
+
 
 
 
