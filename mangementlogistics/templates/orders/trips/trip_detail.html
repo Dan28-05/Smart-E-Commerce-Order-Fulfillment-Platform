@@ -4,59 +4,302 @@
 
 {% block content %}
 <div class="py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h2 class="h4 fw-bold mb-1">Chuyến giao hàng: {{ trip.trip_code }}</h2>
-      <p class="text-muted small mb-0">Lộ trình: {{ trip.route_name }} | Tài xế: {{ trip.driver.name|default:trip.driver.email }}</p>
+  <!-- Top Bar & Controls -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'orders:trip-list' %}" class="btn btn-outline-secondary rounded-circle p-2 d-inline-flex align-items-center justify-content-center" style="width: 40px; height: 40px;" title="Quay lại danh sách">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <h2 class="h4 fw-bold mb-0">Chuyến giao hàng: {{ trip.trip_code }}</h2>
+          {% if trip.status == "PLANNED" %}
+            <span class="badge bg-secondary"><i class="bi bi-clock me-1"></i>Lên kế hoạch</span>
+          {% elif trip.status == "LOADING" %}
+            <span class="badge bg-warning text-dark"><i class="bi bi-box-seam me-1"></i>Đang gom đơn</span>
+          {% elif trip.status == "IN_TRANSIT" %}
+            <span class="badge bg-info text-dark"><i class="bi bi-truck me-1"></i>Đang xuất bến giao</span>
+          {% elif trip.status == "COMPLETED" %}
+            <span class="badge bg-success"><i class="bi bi-check2-all me-1"></i>Đã hoàn thành</span>
+          {% elif trip.status == "CANCELLED" %}
+            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Đã hủy</span>
+          {% endif %}
+        </div>
+        <p class="text-muted small mb-0">
+          Tuyến: <strong>{{ trip.route_name }}</strong>
+          | Xuất phát: <strong>{{ trip.departure_hub }}</strong>
+          | Ngày lập: {{ trip.created_at|date:"d/m/Y H:i" }}
+          {% if trip.departure_time %} | Xuất bến: {{ trip.departure_time|date:"d/m/Y H:i" }}{% endif %}
+        </p>
+      </div>
     </div>
+
     <div class="d-flex gap-2">
-      <a href="{% url 'orders:trip-list' %}" class="btn btn-outline-secondary">Quay lại</a>
+      <a href="{% url 'orders:trip-print' trip.id %}" target="_blank" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+        <i class="bi bi-printer me-1"></i>In bảng kê A4
+      </a>
       {% if is_admin or is_driver %}
         {% if trip.status == "PLANNED" or trip.status == "LOADING" %}
-          <a href="{% url 'orders:trip-add-orders' trip.id %}" class="btn btn-outline-primary">Gom thêm đơn</a>
+          <a href="{% url 'orders:trip-add-orders' trip.id %}" class="btn btn-primary rounded-pill px-3 fw-semibold">
+            <i class="bi bi-plus-circle me-1"></i>Gom thêm đơn
+          </a>
         {% endif %}
       {% endif %}
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
-    <div class="row g-3">
-      <div class="col-md-3"><strong>Trạng thái:</strong> <span class="badge bg-primary">{{ trip.get_status_display }}</span></div>
-      <div class="col-md-3"><strong>Kho xuất phát:</strong> {{ trip.departure_hub }}</div>
-      <div class="col-md-3"><strong>Phương tiện:</strong> {{ trip.get_vehicle_type_display }} ({{ trip.license_plate|default:"Chưa rõ BKS" }})</div>
-      <div class="col-md-3"><strong>Tổng bưu phẩm:</strong> {{ trip.total_orders_count }} đơn</div>
+  <!-- Thông báo hủy chuyến nếu bị hủy -->
+  {% if trip.status == "CANCELLED" %}
+    <div class="alert alert-danger border-0 shadow-sm rounded-4 mb-4 d-flex align-items-center">
+      <i class="bi bi-exclamation-octagon-fill fs-3 me-3 text-danger"></i>
+      <div>
+        <h5 class="fw-bold mb-1">Chuyến xe này đã bị hủy</h5>
+        <p class="mb-0 small">Các bưu phẩm chưa giao đã được gỡ khỏi chuyến để sẵn sàng điều phối lại. Ghi chú: {{ trip.notes|default:"Không có lý do cụ thể." }}</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Thẻ chỉ số tổng hợp chuyến xe -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Tổng số bưu kiện</span>
+        <span class="fs-4 fw-bold text-dark mt-1">{{ trip.total_orders_count }} đơn</span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Tổng khối lượng</span>
+        <span class="fs-4 fw-bold text-primary mt-1">{{ trip.total_weight|floatformat:1 }} kg</span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Tổng tiền thu hộ COD</span>
+        <span class="fs-4 fw-bold text-success mt-1">{{ trip.total_cod_amount|floatformat:0 }} đ</span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 p-3 bg-white text-center">
+        <span class="text-muted small fw-semibold">Tỷ lệ phát thành công</span>
+        <span class="fs-4 fw-bold text-success mt-1">{{ trip.completion_rate }}%</span>
+        <small class="text-muted">({{ trip.delivered_orders_count }}/{{ trip.total_orders_count }} đơn)</small>
+      </div>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
-    <h5 class="fw-bold mb-3">Danh sách bưu kiện trong chuyến</h5>
-    <div class="table-responsive">
-      <table class="table align-middle">
-        <thead>
-          <tr>
-            <th>Mã đơn</th>
-            <th>Người nhận</th>
-            <th>Địa chỉ giao</th>
-            <th>Tiền thu hộ COD</th>
-            <th>Trạng thái</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for o in orders %}
-            <tr>
-              <td><a href="{% url 'orders:order-detail' o.id %}">#{{ o.tracking_number }}</a></td>
-              <td>{{ o.receiver_name }} ({{ o.receiver_phone }})</td>
-              <td>{{ o.receiver_address }}</td>
-              <td class="text-success fw-bold">{{ o.cod_amount|floatformat:0 }} đ</td>
-              <td><span class="badge bg-secondary">{{ o.get_status_display }}</span></td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="5" class="text-center py-4 text-muted">Chưa có đơn hàng nào trong chuyến xe này.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <div class="row g-4 mb-4">
+    <!-- CỘT TRÁI: THÔNG TIN TÀI XẾ & DANH SÁCH BƯU KIỆN -->
+    <div class="col-lg-8">
+      <!-- Thông tin tài xế & phương tiện -->
+      <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
+        <h5 class="fw-bold mb-3 d-flex align-items-center">
+          <i class="bi bi-person-badge text-primary me-2"></i>Tài xế & Phương tiện điều phối
+        </h5>
+        <div class="row g-3 small">
+          <div class="col-sm-6">
+            <span class="d-block text-muted">Tài xế nhận chuyến:</span>
+            <span class="fw-bold text-dark fs-6">{{ trip.driver.name|default:trip.driver.email }}</span>
+            <div class="text-muted">{{ trip.driver.phone_number|default:"Chưa cập nhật SĐT" }}</div>
+          </div>
+          <div class="col-sm-6">
+            <span class="d-block text-muted">Phương tiện vận chuyển:</span>
+            <span class="fw-bold text-dark fs-6">{{ trip.get_vehicle_type_display }}</span>
+            {% if trip.license_plate %}
+              <div class="fw-semibold text-primary">BKS: {{ trip.license_plate }}</div>
+            {% endif %}
+          </div>
+          <div class="col-sm-6">
+            <span class="d-block text-muted">Bưu cục / Kho điều phối:</span>
+            <span class="fw-semibold text-dark">{{ trip.departure_hub }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="d-block text-muted">Người tạo chuyến:</span>
+            <span class="fw-semibold text-dark">
+              {% if trip.created_by %}
+                {{ trip.created_by.name|default:trip.created_by.email }}
+              {% else %}
+                <em>Tự động hệ thống</em>
+              {% endif %}
+            </span>
+          </div>
+          {% if trip.notes %}
+            <div class="col-12">
+              <span class="d-block text-muted">Ghi chú điều phối:</span>
+              <div class="p-3 bg-light rounded-3 mt-1 text-dark">
+                {{ trip.notes|linebreaksbr }}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Bảng kê bưu kiện trong chuyến xe -->
+      <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="fw-bold mb-0 d-flex align-items-center">
+            <i class="bi bi-boxes text-success me-2"></i>Bảng kê bưu phẩm trong chuyến ({{ trip.total_orders_count }} đơn)
+          </h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table align-middle table-hover mb-0">
+            <thead class="table-light small">
+              <tr>
+                <th>Mã vận đơn</th>
+                <th>Người nhận & SĐT</th>
+                <th>Địa chỉ giao hàng</th>
+                <th>Thu hộ COD</th>
+                <th>Trạng thái</th>
+                {% if is_admin or is_driver %}
+                  {% if trip.status == "PLANNED" or trip.status == "LOADING" %}
+                    <th class="text-end">Thao tác</th>
+                  {% endif %}
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for o in orders %}
+                <tr>
+                  <td>
+                    <a href="{% url 'orders:order-detail' o.id %}" class="fw-bold text-decoration-none">
+                      #{{ o.tracking_number }}
+                    </a>
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ o.receiver_name }}</div>
+                    <div class="small text-muted">{{ o.receiver_phone }}</div>
+                  </td>
+                  <td>
+                    <div class="small text-truncate" style="max-width: 250px;" title="{{ o.receiver_address }}">
+                      {{ o.receiver_address }}
+                    </div>
+                  </td>
+                  <td class="text-success fw-bold">
+                    {{ o.cod_amount|floatformat:0 }} đ
+                  </td>
+                  <td>
+                    {% if o.status == "DELIVERED" %}
+                      <span class="badge bg-success">Giao thành công</span>
+                    {% elif o.status == "IN_TRANSIT" %}
+                      <span class="badge bg-info text-dark">Đang giao</span>
+                    {% elif o.status == "RETURNED" %}
+                      <span class="badge bg-danger">Hoàn hàng</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ o.get_status_display }}</span>
+                    {% endif %}
+                  </td>
+                  {% if is_admin or is_driver %}
+                    {% if trip.status == "PLANNED" or trip.status == "LOADING" %}
+                      <td class="text-end">
+                        <form method="post" action="{% url 'orders:trip-action' trip.id %}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn gỡ đơn hàng này khỏi chuyến xe?');">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="REMOVE_ORDER">
+                          <input type="hidden" name="order_id" value="{{ o.id }}">
+                          <button type="submit" class="btn btn-outline-danger btn-sm" title="Gỡ khỏi chuyến">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </form>
+                      </td>
+                    {% endif %}
+                  {% endif %}
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6" class="text-center py-4 text-muted">
+                    Chưa có đơn hàng nào trong chuyến xe này.
+                    {% if trip.status == "PLANNED" or trip.status == "LOADING" %}
+                      <div class="mt-2">
+                        <a href="{% url 'orders:trip-add-orders' trip.id %}" class="btn btn-sm btn-primary">Gom đơn ngay</a>
+                      </div>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: BẢNG ĐIỀU KHIỂN XUẤT BẾN & KẾT THÚC CHUYẾN -->
+    <div class="col-lg-4">
+      {% if is_admin or is_driver %}
+        <div class="card border-0 shadow-sm rounded-4 bg-white p-4 mb-4">
+          <h5 class="fw-bold mb-3 d-flex align-items-center">
+            <i class="bi bi-gear-fill text-warning me-2"></i>Thao tác điều phối chuyến
+          </h5>
+
+          {% if trip.status == "PLANNED" or trip.status == "LOADING" %}
+            <!-- Xuất bến form -->
+            <form method="post" action="{% url 'orders:trip-action' trip.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="DISPATCH">
+              <h6 class="fw-bold text-primary mb-2"><i class="bi bi-box-arrow-up-right me-1"></i>Xuất bến giao hàng</h6>
+              <p class="small text-muted mb-3">Khi xuất bến, toàn bộ {{ trip.total_orders_count }} bưu phẩm trong chuyến xe sẽ tự động chuyển sang trạng thái <strong>Đang vận chuyển (IN_TRANSIT)</strong>.</p>
+              
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Ghi chú xuất bến:</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Ví dụ: Rời kho lúc 08:30 sáng, xe đủ tải..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold" {% if trip.total_orders_count == 0 %}disabled{% endif %}>
+                <i class="bi bi-truck me-1"></i>Xác nhận xuất bến giao hàng
+              </button>
+              {% if trip.total_orders_count == 0 %}
+                <small class="text-danger d-block mt-1 text-center">Cần gom ít nhất 1 đơn hàng để xuất bến.</small>
+              {% endif %}
+            </form>
+
+          {% elif trip.status == "IN_TRANSIT" %}
+            <!-- Hoàn thành chuyến form -->
+            <form method="post" action="{% url 'orders:trip-action' trip.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="COMPLETE">
+              <h6 class="fw-bold text-success mb-2"><i class="bi bi-check2-circle me-1"></i>Hoàn thành chuyến giao hàng</h6>
+              <p class="small text-muted mb-3">Đóng chuyến xe sau khi tài xế đã giao hết lộ trình và trở về kho bàn giao tiền COD.</p>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Ghi chú hoàn thành chuyến:</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Ví dụ: Giao hoàn tất 100%, nộp đủ tiền COD..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-success btn-sm w-100 rounded-pill fw-semibold">
+                <i class="bi bi-check-lg me-1"></i>Xác nhận hoàn thành chuyến xe
+              </button>
+            </form>
+          {% endif %}
+
+          {% if is_admin and trip.status != "COMPLETED" and trip.status != "CANCELLED" %}
+            <hr class="my-4">
+            <!-- Hủy chuyến form -->
+            <form method="post" action="{% url 'orders:trip-action' trip.id %}" onsubmit="return confirm('Bạn có chắc muốn hủy chuyến xe này?');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="CANCEL">
+              <h6 class="fw-bold text-danger mb-2"><i class="bi bi-x-circle me-1"></i>Hủy chuyến xe</h6>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Lý do hủy chuyến:</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Ghi rõ lý do hủy chuyến..." required></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-outline-danger btn-sm w-100 rounded-pill fw-semibold">
+                <i class="bi bi-x-lg me-1"></i>Hủy chuyến xe
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Hướng dẫn điều phối -->
+      <div class="card border-0 shadow-sm rounded-4 bg-light p-4">
+        <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-lightbulb text-warning me-2"></i>Quy chuẩn điều phối tuyến</h6>
+        <ul class="small text-muted ps-3 mb-0">
+          <li class="mb-2"><strong>Gom đơn:</strong> Chọn các bưu kiện cùng khu vực quận/huyện để tối ưu lộ trình di chuyển.</li>
+          <li class="mb-2"><strong>In bảng kê:</strong> In phiếu xuất kho A4 để thủ kho và tài xế ký giao nhận bưu phẩm trước khi rời bưu cục.</li>
+          <li class="mb-2"><strong>Xuất bến:</strong> Hệ thống tự động kích hoạt trạng thái "Đang vận chuyển" và gửi thông báo hành trình.</li>
+          <li><strong>Kết thúc:</strong> Bàn giao tiền thu hộ COD tại quầy thủ quỹ và chốt báo cáo chuyến xe.</li>
+        </ul>
+      </div>
     </div>
   </div>
 </div>

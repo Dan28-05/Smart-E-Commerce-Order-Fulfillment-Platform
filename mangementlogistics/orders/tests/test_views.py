@@ -482,6 +482,14 @@ def test_delivery_trip_views_flow(client, customer_user, admin_user, driver_user
     trip.refresh_from_db()
     assert trip.status == TripStatus.IN_TRANSIT
 
+    # 8. Print trip manifest run sheet view
+    print_url = reverse("orders:trip-print", kwargs={"trip_id": trip.id})
+    resp_print = client.get(print_url)
+    assert resp_print.status_code == 200
+    assert "BẢNG KÊ ĐIỀU PHỐI & XUẤT KHO" in resp_print.content.decode("utf-8")
+    assert trip.trip_code in resp_print.content.decode("utf-8")
+
+
 
 
 

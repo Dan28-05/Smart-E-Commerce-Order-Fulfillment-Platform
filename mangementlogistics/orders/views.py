@@ -1110,6 +1110,27 @@ def delivery_trip_action_view(request, trip_id: int):
     return redirect("orders:trip-detail", trip_id=trip.id)
 
 
+@login_required
+def delivery_trip_print_view(request, trip_id: int):
+    """
+    Renders printable delivery run sheet / trip manifest (A4 / Letter).
+    """
+    trip = delivery_trip_get_by_id(trip_id=trip_id, user=request.user)
+    if not trip:
+        messages.error(request, "Không tìm thấy chuyến giao hàng để in bảng kê.")
+        return redirect("orders:trip-list")
+
+    return render(
+        request,
+        "orders/trips/trip_manifest_print.html",
+        {
+            "trip": trip,
+            "orders": trip.trip_orders.all(),
+        },
+    )
+
+
+
 
 
 

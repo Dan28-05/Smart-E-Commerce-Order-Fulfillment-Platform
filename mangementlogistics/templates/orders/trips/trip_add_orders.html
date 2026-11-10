@@ -3,45 +3,68 @@
 {% block title %}Gom đơn vào chuyến {{ trip.trip_code }} - MangementLogistics{% endblock title %}
 
 {% block content %}
-<div class="row justify-content-center py-4">
-  <div class="col-lg-10">
-    <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{% url 'orders:trip-detail' trip.id %}" class="btn btn-outline-secondary rounded-circle p-2 d-inline-flex align-items-center justify-content-center" style="width: 40px; height: 40px;" title="Quay lại chi tiết chuyến">
+          <i class="bi bi-arrow-left"></i>
+        </a>
         <div>
-          <h3 class="fw-bold mb-1">Gom bưu phẩm vào chuyến xe {{ trip.trip_code }}</h3>
-          <p class="text-muted small mb-0">Tuyến: <strong>{{ trip.route_name }}</strong> | Tài xế: {{ trip.driver.name|default:trip.driver.email }}</p>
+          <h2 class="h4 fw-bold mb-1">Gom bưu kiện vào chuyến xe: {{ trip.trip_code }}</h2>
+          <p class="text-muted small mb-0">Tuyến: <strong>{{ trip.route_name }}</strong> | Tài xế: <strong>{{ trip.driver.name|default:trip.driver.email }}</strong></p>
         </div>
-        <a href="{% url 'orders:trip-detail' trip.id %}" class="btn btn-outline-secondary btn-sm">Quay lại chi tiết</a>
       </div>
 
-      <form method="post" novalidate>
-        {% csrf_token %}
-        <div class="mb-4">
-          <label class="form-label fw-semibold mb-2">Chọn các đơn hàng cần đưa vào chuyến xe:</label>
-          <div class="border rounded-3 p-3" style="max-height: 400px; overflow-y: auto;">
-            {% for choice in form.orders %}
-              <div class="form-check py-1 border-bottom">
-                {{ choice.tag }}
-                <label class="form-check-label ms-2" for="{{ choice.id_for_label }}">
-                  {{ choice.choice_label }}
-                </label>
-              </div>
-            {% empty %}
-              <p class="text-muted mb-0 small text-center py-3">Hiện không có đơn hàng nào sẵn sàng điều phối cho tuyến này.</p>
-            {% endfor %}
-          </div>
-          {% if form.orders.errors %}
-            <div class="text-danger small mt-1">{{ form.orders.errors|join:", " }}</div>
-          {% endif %}
-        </div>
+      <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+        <form method="post" novalidate>
+          {% csrf_token %}
 
-        <div class="d-flex justify-content-end gap-2">
-          <a href="{% url 'orders:trip-detail' trip.id %}" class="btn btn-outline-secondary">Hủy bỏ</a>
-          <button type="submit" class="btn btn-primary px-4 fw-semibold">
-            <i class="bi bi-check2-circle me-1"></i>Xác nhận gom vào chuyến
-          </button>
-        </div>
-      </form>
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger rounded-3 py-2 small mb-3">
+              {{ form.non_field_errors|join:", " }}
+            </div>
+          {% endif %}
+
+          <div class="mb-4">
+            <h6 class="fw-bold mb-3 d-flex align-items-center text-primary">
+              <i class="bi bi-box-seam me-2"></i>Chọn các đơn hàng cần đưa vào lộ trình xuất bến:
+            </h6>
+
+            <div class="border rounded-4 p-3 bg-light" style="max-height: 450px; overflow-y: auto;">
+              {% for choice in form.orders %}
+                <div class="form-check p-2 bg-white rounded-3 mb-2 shadow-sm d-flex align-items-center">
+                  {{ choice.tag }}
+                  <label class="form-check-label ms-2 small fw-semibold text-dark flex-grow-1 cursor-pointer" for="{{ choice.id_for_label }}">
+                    {{ choice.choice_label }}
+                  </label>
+                </div>
+              {% empty %}
+                <div class="text-center py-5 text-muted">
+                  <i class="bi bi-inbox fs-2 mb-2 d-block"></i>
+                  <span>Hiện không có đơn hàng nào sẵn sàng điều phối cho tuyến này.</span>
+                </div>
+              {% endfor %}
+            </div>
+
+            {% if form.orders.errors %}
+              <div class="text-danger small mt-2">{{ form.orders.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+            <span class="small text-muted">Chỉ những đơn hàng ở trạng thái Chờ tiếp nhận / Đã xác nhận mới hiển thị tại đây.</span>
+            <div class="d-flex gap-2">
+              <a href="{% url 'orders:trip-detail' trip.id %}" class="btn btn-outline-secondary rounded-pill px-4">
+                Hủy bỏ
+              </a>
+              <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+                <i class="bi bi-check2-circle me-1"></i>Xác nhận gom vào chuyến
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </div>

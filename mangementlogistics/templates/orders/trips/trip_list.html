@@ -1,47 +1,253 @@
 {% extends "base.html" %}
 
-{% block title %}Quản lý Chuyến giao hàng - MangementLogistics{% endblock title %}
+{% block title %}Quản lý Chuyến giao hàng & Lộ trình - MangementLogistics{% endblock title %}
 
 {% block content %}
 <div class="py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <!-- Tiêu đề trang & Nút hành động -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
-      <h2 class="fw-bold mb-1">Quản lý Chuyến xe Giao hàng & Bảng kê Điều phối</h2>
-      <p class="text-muted mb-0">Theo dõi lộ trình, điều phối tài xế và kiểm soát tiến độ bưu kiện theo chuyến.</p>
+      <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-1 rounded-pill fw-semibold mb-2">
+        <i class="bi bi-truck me-1"></i>Điều phối Vận tải & Chuyến xe
+      </span>
+      <h2 class="h3 fw-bold mb-1">Quản lý Chuyến xe Giao hàng & Bảng kê Điều phối</h2>
+      <p class="text-muted small mb-0">Thiết lập lộ trình bưu tá, gom đơn hàng loạt và theo dõi tiến độ giao hàng theo chuyến xe.</p>
     </div>
     {% if is_admin or is_driver %}
-      <a href="{% url 'orders:trip-create' %}" class="btn btn-primary rounded-pill px-4 fw-semibold">
-        <i class="bi bi-plus-circle me-1"></i>Tạo chuyến xe mới
-      </a>
+      <div class="d-flex gap-2">
+        <a href="{% url 'orders:trip-create' %}" class="btn btn-primary rounded-pill px-4 shadow-sm fw-semibold">
+          <i class="bi bi-plus-circle me-1"></i>Lập chuyến xe mới
+        </a>
+      </div>
     {% endif %}
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 bg-white p-4">
+  <!-- Thẻ chỉ số KPI Chuyến xe -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Tổng chuyến</span>
+            <div class="rounded-3 bg-secondary bg-opacity-10 text-secondary p-2 d-inline-flex">
+              <i class="bi bi-collection fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-dark">{{ summary_stats.total_trips }}</h3>
+          <span class="small text-muted">Chuyến xe được lập</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Chờ xuất bến</span>
+            <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-2 d-inline-flex">
+              <i class="bi bi-hourglass-split fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-warning">{{ summary_stats.planned_trips }}</h3>
+          <span class="small text-muted">Kế hoạch & Gom đơn</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Đang giao trên đường</span>
+            <div class="rounded-3 bg-info bg-opacity-10 text-info p-2 d-inline-flex">
+              <i class="bi bi-truck fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-info">{{ summary_stats.active_trips }}</h3>
+          <span class="small text-muted">Chuyến xe đang lưu thông</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Hoàn thành</span>
+            <div class="rounded-3 bg-success bg-opacity-10 text-success p-2 d-inline-flex">
+              <i class="bi bi-check2-circle fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-success">{{ summary_stats.completed_trips }}</h3>
+          <span class="small text-muted">Đã giao xong chuyến</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-3">
+      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-semibold">Bưu phẩm & Tiền COD</span>
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2 d-inline-flex">
+              <i class="bi bi-cash-stack fs-5"></i>
+            </div>
+          </div>
+          <h3 class="h4 fw-bold mb-1 text-primary">{{ summary_stats.total_orders_dispatched }} đơn</h3>
+          <span class="small text-muted">COD: {{ summary_stats.total_cod_in_trips|floatformat:0 }} đ</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thanh lọc trạng thái và Tìm kiếm -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+    <div class="card-body p-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <!-- Bộ lọc pills -->
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Trạng thái:</span>
+          <a href="{% url 'orders:trip-list' %}{% if search_query %}?q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if not selected_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+            Tất cả
+          </a>
+          <a href="{% url 'orders:trip-list' %}?status=PLANNED{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'PLANNED' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+            Lên kế hoạch
+          </a>
+          <a href="{% url 'orders:trip-list' %}?status=LOADING{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'LOADING' %}btn-warning text-dark{% else %}btn-outline-secondary{% endif %}">
+            Đang gom hàng
+          </a>
+          <a href="{% url 'orders:trip-list' %}?status=IN_TRANSIT{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'IN_TRANSIT' %}btn-info text-dark{% else %}btn-outline-secondary{% endif %}">
+            Đang xuất bến
+          </a>
+          <a href="{% url 'orders:trip-list' %}?status=COMPLETED{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'COMPLETED' %}btn-success{% else %}btn-outline-secondary{% endif %}">
+            Đã hoàn thành
+          </a>
+          <a href="{% url 'orders:trip-list' %}?status=CANCELLED{% if search_query %}&q={{ search_query }}{% endif %}"
+             class="btn btn-sm rounded-pill {% if selected_status == 'CANCELLED' %}btn-danger{% else %}btn-outline-secondary{% endif %}">
+            Đã hủy
+          </a>
+        </div>
+
+        <!-- Ô tìm kiếm -->
+        <form method="get" class="d-flex align-items-center gap-2">
+          {% if selected_status %}
+            <input type="hidden" name="status" value="{{ selected_status }}">
+          {% endif %}
+          <div class="input-group input-group-sm" style="width: 300px;">
+            <input type="text" name="q" class="form-control" placeholder="Mã chuyến, lộ trình, tài xế, BKS..." value="{{ search_query }}">
+            <button class="btn btn-outline-secondary" type="submit">
+              <i class="bi bi-search"></i>
+            </button>
+            {% if search_query %}
+              <a href="{% url 'orders:trip-list' %}{% if selected_status %}?status={{ selected_status }}{% endif %}" class="btn btn-outline-danger" title="Xóa tìm kiếm">
+                <i class="bi bi-x"></i>
+              </a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danh sách các chuyến xe giao hàng -->
+  <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
     <div class="table-responsive">
-      <table class="table align-middle">
-        <thead>
+      <table class="table align-middle table-hover mb-0">
+        <thead class="table-light">
           <tr>
-            <th>Mã chuyến</th>
-            <th>Tuyến / Lộ trình</th>
-            <th>Tài xế</th>
-            <th>Số đơn</th>
+            <th class="ps-4">Mã chuyến / Ngày lập</th>
+            <th>Lộ trình / Bưu cục xuất phát</th>
+            <th>Tài xế giao hàng</th>
+            <th>Phương tiện & BKS</th>
+            <th>Tiến độ phát hàng</th>
+            <th>Thu hộ COD & Cước</th>
             <th>Trạng thái</th>
-            <th>Thao tác</th>
+            <th class="text-end pe-4">Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {% for trip in trips %}
             <tr>
-              <td><a href="{% url 'orders:trip-detail' trip.id %}" class="fw-bold">{{ trip.trip_code }}</a></td>
-              <td>{{ trip.route_name }}</td>
-              <td>{{ trip.driver.name|default:trip.driver.email }}</td>
-              <td>{{ trip.total_orders_count }} đơn</td>
-              <td><span class="badge bg-secondary">{{ trip.get_status_display }}</span></td>
-              <td><a href="{% url 'orders:trip-detail' trip.id %}" class="btn btn-sm btn-outline-primary">Chi tiết</a></td>
+              <td class="ps-4">
+                <a href="{% url 'orders:trip-detail' trip.id %}" class="fw-bold text-decoration-none text-primary">
+                  {{ trip.trip_code }}
+                </a>
+                <div class="small text-muted">{{ trip.created_at|date:"d/m/Y H:i" }}</div>
+              </td>
+              <td>
+                <div class="fw-semibold text-dark">{{ trip.route_name }}</div>
+                <div class="small text-muted"><i class="bi bi-geo-alt me-1 text-danger"></i>{{ trip.departure_hub }}</div>
+              </td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="rounded-circle bg-primary bg-opacity-10 text-primary p-1 d-inline-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                    <i class="bi bi-person-fill"></i>
+                  </div>
+                  <div>
+                    <span class="fw-semibold text-dark small">{{ trip.driver.name|default:trip.driver.email }}</span>
+                    {% if trip.driver.phone_number %}
+                      <div class="small text-muted">{{ trip.driver.phone_number }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge bg-secondary bg-opacity-10 text-dark fw-semibold">{{ trip.get_vehicle_type_display }}</span>
+                {% if trip.license_plate %}
+                  <div class="small fw-bold text-muted font-monospace mt-1">{{ trip.license_plate }}</div>
+                {% endif %}
+              </td>
+              <td style="min-width: 140px;">
+                <div class="d-flex justify-content-between small mb-1">
+                  <span class="fw-semibold text-success">{{ trip.delivered_orders_count }}/{{ trip.total_orders_count }} đơn</span>
+                  <span class="text-muted">{{ trip.completion_rate }}%</span>
+                </div>
+                <div class="progress" style="height: 6px;">
+                  <div class="progress-bar bg-success" role="progressbar" style="width: {{ trip.completion_rate }}%;" aria-valuenow="{{ trip.completion_rate }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+              </td>
+              <td>
+                <div class="small text-muted">COD: <strong class="text-success">{{ trip.total_cod_amount|floatformat:0 }} đ</strong></div>
+                <div class="small text-muted">Cước: <span>{{ trip.total_shipping_fee|floatformat:0 }} đ</span></div>
+              </td>
+              <td>
+                {% if trip.status == "PLANNED" %}
+                  <span class="badge bg-secondary"><i class="bi bi-clock me-1"></i>Lên kế hoạch</span>
+                {% elif trip.status == "LOADING" %}
+                  <span class="badge bg-warning text-dark"><i class="bi bi-box-seam me-1"></i>Đang gom đơn</span>
+                {% elif trip.status == "IN_TRANSIT" %}
+                  <span class="badge bg-info text-dark"><i class="bi bi-truck me-1"></i>Đang giao hàng</span>
+                {% elif trip.status == "COMPLETED" %}
+                  <span class="badge bg-success"><i class="bi bi-check2-all me-1"></i>Hoàn thành</span>
+                {% elif trip.status == "CANCELLED" %}
+                  <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Đã hủy</span>
+                {% endif %}
+              </td>
+              <td class="text-end pe-4">
+                <div class="btn-group btn-group-sm">
+                  <a href="{% url 'orders:trip-detail' trip.id %}" class="btn btn-outline-primary" title="Xem chi tiết chuyến">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{% url 'orders:trip-print' trip.id %}" class="btn btn-outline-secondary" title="In bảng kê xuất kho" target="_blank">
+                    <i class="bi bi-printer"></i>
+                  </a>
+                </div>
+              </td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="6" class="text-center py-4 text-muted">Chưa có chuyến giao hàng nào.</td>
+              <td colspan="8" class="text-center py-5">
+                <div class="text-muted">
+                  <i class="bi bi-truck fs-1 d-block mb-2 text-secondary"></i>
+                  <p class="mb-1 fw-semibold">Không tìm thấy chuyến xe nào phù hợp</p>
+                  <small>Tạo chuyến xe điều phối mới để gán danh sách đơn hàng cho tài xế giao theo tuyến.</small>
+                </div>
+              </td>
             </tr>
           {% endfor %}
         </tbody>

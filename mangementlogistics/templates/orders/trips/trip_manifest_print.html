@@ -1,0 +1,188 @@
+{% load static %}<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Bảng kê điều phối xuất kho - #{{ trip.trip_code }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #000;
+    }
+    .manifest-card {
+      max-width: 900px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 30px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    .barcode-box {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+      background: #fafafa;
+    }
+    .barcode-lines {
+      height: 40px;
+      letter-spacing: 4px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    @media print {
+      body {
+        background-color: #fff;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .manifest-card {
+        margin: 0;
+        max-width: 100%;
+        border: none;
+        box-shadow: none !important;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Print Controls -->
+  <div class="container text-center my-3 no-print">
+    <button onclick="window.print()" class="btn btn-primary btn-lg px-4 me-2 fw-semibold">
+      <i class="bi bi-printer-fill me-2"></i>In bảng kê xuất kho (Print Manifest)
+    </button>
+    <a href="{% url 'orders:trip-detail' trip.id %}" class="btn btn-outline-secondary btn-lg">
+      <i class="bi bi-arrow-left me-1"></i>Quay lại chuyến xe
+    </a>
+  </div>
+
+  <div class="manifest-card shadow-sm">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+      <div>
+        <h4 class="fw-bold mb-0 text-primary">
+          <i class="bi bi-truck me-1"></i>MangementLogistics TMS
+        </h4>
+        <small class="text-muted">Hệ thống Điều phối Vận tải & Quản lý Chuyến xe | Hotline: 1900 8888</small>
+      </div>
+      <div class="text-end">
+        <div class="fw-bold fs-6">BẢNG KÊ ĐIỀU PHỐI & XUẤT KHO BƯU KIỆN</div>
+        <small class="text-muted">Ngày lập: {{ trip.created_at|date:"d/m/Y H:i" }}</small>
+      </div>
+    </div>
+
+    <!-- Barcode & Trip Code -->
+    <div class="row align-items-center mb-3">
+      <div class="col-8">
+        <h5 class="fw-bold mb-1 text-dark">CHUYẾN XE: {{ trip.trip_code }}</h5>
+        <div class="small text-muted">
+          Lộ trình: <strong>{{ trip.route_name }}</strong>
+          | Xuất phát: <strong>{{ trip.departure_hub }}</strong>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="barcode-box">
+          <div class="barcode-lines text-dark">|||| ||||| ||| |||||| ||||</div>
+          <div class="small fw-bold mt-1">#{{ trip.trip_code }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metadata Grid -->
+    <table class="table table-bordered small mb-3">
+      <tbody>
+        <tr>
+          <td class="fw-bold bg-light" style="width: 20%;">Tài xế nhận chuyến:</td>
+          <td style="width: 30%;">
+            <strong>{{ trip.driver.name|default:trip.driver.email }}</strong>
+            {% if trip.driver.phone_number %} ({{ trip.driver.phone_number }}){% endif %}
+          </td>
+          <td class="fw-bold bg-light" style="width: 20%;">Phương tiện & BKS:</td>
+          <td style="width: 30%;">
+            {{ trip.get_vehicle_type_display }}
+            {% if trip.license_plate %} - <strong>{{ trip.license_plate }}</strong>{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td class="fw-bold bg-light">Tổng số bưu phẩm:</td>
+          <td class="fw-bold text-dark">{{ trip.total_orders_count }} đơn hàng</td>
+          <td class="fw-bold bg-light">Tổng khối lượng:</td>
+          <td class="fw-bold">{{ trip.total_weight|floatformat:1 }} kg</td>
+        </tr>
+        <tr>
+          <td class="fw-bold bg-light">Tổng tiền thu hộ COD:</td>
+          <td class="fw-bold text-success fs-6">{{ trip.total_cod_amount|floatformat:0 }} VNĐ</td>
+          <td class="fw-bold bg-light">Thời điểm xuất bến:</td>
+          <td>{{ trip.departure_time|date:"d/m/Y H:i"|default:"Chưa xuất bến" }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Manifest Orders Table -->
+    <div class="table-responsive mb-4">
+      <table class="table table-bordered table-sm small align-middle mb-0">
+        <thead class="table-light text-center">
+          <tr>
+            <th style="width: 5%;">STT</th>
+            <th style="width: 18%;">Mã vận đơn</th>
+            <th style="width: 20%;">Người nhận & SĐT</th>
+            <th>Địa chỉ phát hàng</th>
+            <th style="width: 15%;">Thu hộ COD</th>
+            <th style="width: 17%;">Ký nhận / Ghi chú phát</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+            <tr>
+              <td class="text-center">{{ forloop.counter }}</td>
+              <td class="fw-bold text-center">#{{ o.tracking_number }}</td>
+              <td>
+                <div class="fw-semibold">{{ o.receiver_name }}</div>
+                <div>{{ o.receiver_phone }}</div>
+              </td>
+              <td>{{ o.receiver_address }}</td>
+              <td class="text-end fw-bold text-success">
+                {{ o.cod_amount|floatformat:0 }} đ
+              </td>
+              <td></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-3 text-muted">Chưa có đơn hàng trong bảng kê này.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Signature Boxes -->
+    <div class="row text-center mt-4 pt-2">
+      <div class="col-4">
+        <div class="fw-bold small">ĐIỀU PHỐI VIÊN LẬP BẢNG</div>
+        <div class="text-muted small fst-italic mb-5">(Ký và ghi rõ họ tên)</div>
+        <div class="border-top pt-1 small text-muted">Xác nhận phân luồng</div>
+      </div>
+      <div class="col-4">
+        <div class="fw-bold small">THỦ KHO XUẤT BƯU PHẨM</div>
+        <div class="text-muted small fst-italic mb-5">(Ký và kiểm đếm số kiện)</div>
+        <div class="border-top pt-1 small text-muted">Đã kiểm đủ kiện hàng</div>
+      </div>
+      <div class="col-4">
+        <div class="fw-bold small">TÀI XẾ NHẬN HÀNG</div>
+        <div class="text-muted small fst-italic mb-5">(Ký và nhận bảng kê lộ trình)</div>
+        <div class="border-top pt-1 small text-muted">Bắt đầu xuất bến giao</div>
+      </div>
+    </div>
+
+    <!-- Footer Note -->
+    <div class="border-top pt-3 mt-4 text-center text-muted small">
+      Bảng kê được xuất từ hệ thống MangementLogistics. Mọi thông tin cần hỗ trợ vui lòng liên hệ tổng đài 1900 8888.
+    </div>
+  </div>
+</body>
+</html>
