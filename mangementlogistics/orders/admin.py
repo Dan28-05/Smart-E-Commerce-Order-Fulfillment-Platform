@@ -3,6 +3,7 @@ from django.contrib import admin
 
 from mangementlogistics.orders.models import (
     CODReconciliation,
+    DeliveryTrip,
     Order,
     OrderReturn,
     OrderTrackingHistory,
@@ -91,6 +92,43 @@ class OrderReturnAdmin(admin.ModelAdmin):
         "assigned_driver__email",
     )
     readonly_fields = ("return_code", "created_at", "approved_at", "completed_at", "updated_at")
+
+
+class TripOrderInline(admin.TabularInline):
+    model = Order
+    fields = ("tracking_number", "receiver_name", "receiver_phone", "receiver_address", "status", "cod_amount", "shipping_fee")
+    readonly_fields = fields
+    extra = 0
+    show_change_link = True
+    can_delete = False
+
+
+@admin.register(DeliveryTrip)
+class DeliveryTripAdmin(admin.ModelAdmin):
+    inlines = [TripOrderInline]
+    list_display = (
+        "trip_code",
+        "route_name",
+        "driver",
+        "vehicle_type",
+        "license_plate",
+        "status",
+        "departure_hub",
+        "created_at",
+        "departure_time",
+        "completion_time",
+    )
+    list_filter = ("status", "vehicle_type", "departure_hub", "created_at")
+    search_fields = (
+        "trip_code",
+        "route_name",
+        "driver__email",
+        "driver__name",
+        "license_plate",
+        "departure_hub",
+    )
+    readonly_fields = ("trip_code", "created_at", "updated_at")
+
 
 
 

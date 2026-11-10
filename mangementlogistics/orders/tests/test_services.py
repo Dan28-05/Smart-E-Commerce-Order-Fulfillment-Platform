@@ -11,6 +11,8 @@ from mangementlogistics.orders.constants import (
     ReturnFeePayer,
     ReturnReason,
     ReturnStatus,
+    TripStatus,
+    VehicleType,
 )
 from mangementlogistics.orders.exceptions import (
     CODReconciliationError,
@@ -21,6 +23,7 @@ from mangementlogistics.orders.exceptions import (
 )
 from mangementlogistics.orders.models import (
     CODReconciliation,
+    DeliveryTrip,
     Order,
     OrderReturn,
 )
@@ -946,6 +949,49 @@ def test_order_return_full_reverse_logistics_e2e_flow(customer_user, admin_user,
     assert final_stats["total_returns"] >= 1
     assert final_stats["completed_returns"] >= 1
     assert final_stats["total_refund_amount"] >= Decimal("600000.00")
+
+
+def test_delivery_trip_model_defaults(driver_user, admin_user, customer_user):
+    """
+    Test DeliveryTrip model creation, generated trip code, vehicle defaults and relationships.
+    """
+    trip = DeliveryTrip.objects.create(
+        driver=driver_user,
+        created_by=admin_user,
+        route_name="Tuyến Hà Nội - Bắc Ninh",
+        departure_hub="Kho tổng Gia Lâm",
+        vehicle_type=VehicleType.VAN,
+        license_plate="29D-888.99",
+    )
+    assert trip.id is not None
+    assert trip.trip_code.startswith("TRIP-")
+    assert trip.status == TripStatus.PLANNED
+    assert trip.total_orders_count == 0
+    assert trip.total_weight == 0
+    assert trip.total_cod_amount == 0
+    assert trip.completion_rate == 0
+    assert trip.route_name in str(trip)
+
+    # Attach order to trip
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender",
+        sender_phone="0901",
+        sender_address="Hanoi",
+        receiver_name="Receiver",
+        receiver_phone="0902",
+        receiver_address="Bac Ninh",
+        weight=Decimal("2.5"),
+        cod_amount=Decimal("250000.00"),
+        shipping_fee=Decimal("30000.00"),
+    )
+    order.delivery_trip = trip
+    order.save()
+
+    assert trip.total_orders_count == 1
+    assert trip.total_weight == Decimal("2.5")
+    assert trip.total_cod_amount == Decimal("250000.00")
+
 
 
 

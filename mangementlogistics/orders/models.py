@@ -15,6 +15,8 @@ from mangementlogistics.orders.constants import (
     ReturnFeePayer,
     ReturnReason,
     ReturnStatus,
+    TripStatus,
+    VehicleType,
 )
 
 
@@ -52,6 +54,15 @@ class Order(models.Model):
         blank=True,
         related_name="assigned_orders",
         verbose_name=_("Tài xế phụ trách"),
+    )
+
+    delivery_trip = models.ForeignKey(
+        "DeliveryTrip",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="trip_orders",
+        verbose_name=_("Chuyến giao hàng"),
     )
 
     # Sender info
@@ -412,6 +423,133 @@ class OrderReturn(models.Model):
 
     def __str__(self) -> str:
         return f"{self.return_code} - {self.order.tracking_number} ({self.get_status_display()})"
+
+
+def generate_unique_trip_code() -> str:
+    """Generates unique dispatch delivery trip code like TRIP-20261110-A1B2"""
+    date_part = timezone.now().strftime("%Y%m%d")
+    random_part = uuid.uuid4().hex[:4].upper()
+    return f"TRIP-{date_part}-{random_part}"
+
+
+class DeliveryTrip(models.Model):
+    """
+    Logistics delivery run / trip manifest grouping multiple orders for driver dispatch and batch transit.
+    """
+    trip_code = models.CharField(
+        _("Mã chuyến giao hàng"),
+        max_length=64,
+        unique=True,
+        default=generate_unique_trip_code,
+        editable=False,
+        db_index=True,
+    )
+    driver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="delivery_trips",
+        verbose_name=_("Tài xế phụ trách"),
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_delivery_trips",
+        verbose_name=_("Người tạo chuyến"),
+    )
+    route_name = models.CharField(
+        _("Tên lộ trình / Tuyến giao"),
+        max_length=255,
+    )
+    departure_hub = models.CharField(
+        _("Kho xuất phát / Bưu cục"),
+        max_length=255,
+        default="Kho tổng điều phối",
+    )
+    vehicle_type = models.CharField(
+        _("Phương tiện giao vận"),
+        max_length=32,
+        choices=VehicleType.choices,
+        default=VehicleType.MOTORBIKE,
+    )
+    license_plate = models.CharField(
+        _("Biển kiểm soát xe"),
+        max_length=32,
+        blank=True,
+        default="",
+    )
+    status = models.CharField(
+        _("Trạng thái chuyến"),
+        max_length=32,
+        choices=TripStatus.choices,
+        default=TripStatus.PLANNED,
+        db_index=True,
+    )
+    departure_time = models.DateTimeField(
+        _("Thời điểm xuất bến"),
+        null=True,
+        blank=True,
+    )
+    completion_time = models.DateTimeField(
+        _("Thời điểm hoàn thành"),
+        null=True,
+        blank=True,
+    )
+    notes = models.TextField(
+        _("Ghi chú chuyến đi"),
+        blank=True,
+        default="",
+    )
+    created_at = models.DateTimeField(
+        _("Ngày lập chuyến"),
+        auto_now_add=True,
+        db_index=True,
+    )
+    updated_at = models.DateTimeField(
+        _("Cập nhật lần cuối"),
+        auto_now=True,
+    )
+
+    class Meta:
+        verbose_name = _("Chuyến giao hàng")
+        verbose_name_plural = _("Danh sách chuyến giao hàng")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.trip_code} - {self.route_name} ({self.get_status_display()})"
+
+    @property
+    def total_orders_count(self) -> int:
+        return self.trip_orders.count()
+
+    @property
+    def total_weight(self):
+        return sum(order.weight for order in self.trip_orders.all())
+
+    @property
+    def total_cod_amount(self):
+        return sum(order.cod_amount for order in self.trip_orders.all())
+
+    @property
+    def total_shipping_fee(self):
+        return sum(order.shipping_fee for order in self.trip_orders.all())
+
+    @property
+    def delivered_orders_count(self) -> int:
+        return self.trip_orders.filter(status=OrderStatus.DELIVERED).count()
+
+    @property
+    def failed_orders_count(self) -> int:
+        return self.trip_orders.filter(status__in=[OrderStatus.CANCELLED, OrderStatus.RETURNED]).count()
+
+    @property
+    def completion_rate(self) -> int:
+        total = self.total_orders_count
+        if total == 0:
+            return 0
+        return int((self.delivered_orders_count / total) * 100)
+
 
 
 

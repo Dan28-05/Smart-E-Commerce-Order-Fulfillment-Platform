@@ -55,6 +55,22 @@ class ReturnFeePayer(models.TextChoices):
     CARRIER_COMPENSATE = cast(str, ("CARRIER_COMPENSATE", "Đơn vị vận chuyển bồi thường / Miễn phí"))
 
 
+class TripStatus(models.TextChoices):
+    PLANNED = cast(str, ("PLANNED", "Lên kế hoạch"))
+    LOADING = cast(str, ("LOADING", "Đang gom bưu phẩm"))
+    IN_TRANSIT = cast(str, ("IN_TRANSIT", "Đang xuất bến giao hàng"))
+    COMPLETED = cast(str, ("COMPLETED", "Đã hoàn thành chuyến"))
+    CANCELLED = cast(str, ("CANCELLED", "Đã hủy chuyến"))
+
+
+class VehicleType(models.TextChoices):
+    MOTORBIKE = cast(str, ("MOTORBIKE", "Xe máy / Shipper"))
+    VAN = cast(str, ("VAN", "Xe bán tải / Van"))
+    TRUCK_500KG = cast(str, ("TRUCK_500KG", "Xe tải 500kg"))
+    TRUCK_1TON = cast(str, ("TRUCK_1TON", "Xe tải 1 tấn"))
+    TRUCK_2TON = cast(str, ("TRUCK_2TON", "Xe tải 2 tấn trở lên"))
+
+
 
 
 # ==============================================================================
