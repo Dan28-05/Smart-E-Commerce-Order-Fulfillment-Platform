@@ -1242,6 +1242,97 @@ def test_delivery_trip_selectors_and_summary_stats(driver_user, admin_user, cust
     assert stats["total_cod_in_trips"] >= Decimal("300000.00")
 
 
+def test_delivery_trip_full_dispatch_e2e_flow(customer_user, admin_user, driver_user):
+    """
+    End-to-End test covering the complete delivery trip lifecycle:
+    Trip Creation -> Batch Order Assignment -> Dispatch -> Multi-order delivery & return ->
+    Trip Completion -> Metrics calculation.
+    """
+    # 1. Dispatcher creates delivery trip for driver
+    trip = delivery_trip_create(
+        driver=driver_user,
+        actor=admin_user,
+        route_name="Tuyến Liên Quận Cầu Giấy - Ba Đình",
+        departure_hub="Kho Trung Chuyển Mỹ Đình",
+        vehicle_type=VehicleType.VAN,
+        license_plate="29C-777.88",
+    )
+    assert trip.status == TripStatus.PLANNED
+
+    # 2. Customer places 3 separate orders
+    order1 = order_create(
+        customer=customer_user,
+        sender_name="Tech Store",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Customer 1",
+        receiver_phone="0921",
+        receiver_address="Cau Giay",
+        weight=Decimal("1.0"),
+        cod_amount=Decimal("300000.00"),
+        shipping_fee=Decimal("25000.00"),
+    )
+    order2 = order_create(
+        customer=customer_user,
+        sender_name="Book Shop",
+        sender_phone="0912",
+        sender_address="Hanoi",
+        receiver_name="Customer 2",
+        receiver_phone="0922",
+        receiver_address="Ba Dinh",
+        weight=Decimal("2.0"),
+        cod_amount=Decimal("450000.00"),
+        shipping_fee=Decimal("30000.00"),
+    )
+    order3 = order_create(
+        customer=customer_user,
+        sender_name="Fashion Shop",
+        sender_phone="0913",
+        sender_address="Hanoi",
+        receiver_name="Customer 3",
+        receiver_phone="0923",
+        receiver_address="Ba Dinh",
+        weight=Decimal("0.5"),
+        cod_amount=Decimal("200000.00"),
+        shipping_fee=Decimal("20000.00"),
+    )
+
+    # 3. Batch assign 3 orders to trip
+    delivery_trip_add_orders(trip=trip, order_ids=[order1.id, order2.id, order3.id], actor=admin_user)
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.LOADING
+    assert trip.total_orders_count == 3
+    assert trip.total_weight == Decimal("3.5")
+    assert trip.total_cod_amount == Decimal("950000.00")
+
+    # 4. Dispatch the trip
+    delivery_trip_dispatch(trip=trip, actor=driver_user, notes="Xe xuất bến lúc 09:00")
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.IN_TRANSIT
+    assert trip.departure_time is not None
+
+    for o in [order1, order2, order3]:
+        o.refresh_from_db()
+        assert o.status == OrderStatus.IN_TRANSIT
+
+    # 5. Driver delivers order 1 and order 2
+    order_update_status(order=order1, new_status=OrderStatus.DELIVERED, actor=driver_user, location="Cau Giay", note="Đã giao xong")
+    order_update_status(order=order2, new_status=OrderStatus.DELIVERED, actor=driver_user, location="Ba Dinh", note="Đã thu tiền")
+
+    # Driver marks order 3 as returned (customer refused)
+    order_update_status(order=order3, new_status=OrderStatus.RETURNED, actor=driver_user, location="Ba Dinh", note="Khách đổi ý không nhận")
+
+    # 6. Driver returns to hub and completes trip
+    delivery_trip_complete(trip=trip, actor=driver_user, notes="Đã giao 2 đơn, 1 đơn trả lại kho")
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.COMPLETED
+    assert trip.completion_time is not None
+    assert trip.delivered_orders_count == 2
+    assert trip.failed_orders_count == 1
+    assert trip.completion_rate == 66
+
+
+
 
 
 
