@@ -31,6 +31,11 @@ from mangementlogistics.orders.models import (
 from mangementlogistics.orders.selectors import (
     cod_reconciliation_get_summary_stats,
     cod_reconciliation_list,
+    delivery_trip_get_by_code,
+    delivery_trip_get_by_id,
+    delivery_trip_get_eligible_orders,
+    delivery_trip_get_summary_stats,
+    delivery_trip_list,
     order_return_get_by_id,
     order_return_get_summary_stats,
     order_return_list,
@@ -1166,6 +1171,76 @@ def test_delivery_trip_dispatch_complete_and_cancel_lifecycle(driver_user, admin
     assert trip2.status == TripStatus.CANCELLED
     order2.refresh_from_db()
     assert order2.delivery_trip is None
+
+
+def test_delivery_trip_selectors_and_summary_stats(driver_user, admin_user, customer_user):
+    """
+    Test delivery trip selectors filtering, permission scoping, and KPI calculation.
+    """
+    trip1 = delivery_trip_create(
+        driver=driver_user,
+        actor=admin_user,
+        route_name="Tuyến Tây Hồ",
+        departure_hub="Bưu cục Tây Hồ",
+    )
+    order1 = order_create(
+        customer=customer_user,
+        sender_name="Sender",
+        sender_phone="0901",
+        sender_address="Hanoi",
+        receiver_name="Receiver",
+        receiver_phone="0902",
+        receiver_address="Tay Ho",
+        cod_amount=Decimal("300000.00"),
+    )
+    delivery_trip_add_orders(trip=trip1, order_ids=[order1.id], actor=admin_user)
+    delivery_trip_dispatch(trip=trip1, actor=driver_user)
+
+    # 1. Admin selector list
+    admin_trips = delivery_trip_list(user=admin_user)
+    assert admin_trips.filter(id=trip1.id).exists()
+
+    # 2. Driver selector list
+    driver_trips = delivery_trip_list(user=driver_user)
+    assert driver_trips.filter(id=trip1.id).exists()
+
+    # 3. Status filter
+    in_transit_trips = delivery_trip_list(user=admin_user, status=TripStatus.IN_TRANSIT)
+    assert in_transit_trips.filter(id=trip1.id).exists()
+
+    # 4. Search filter
+    search_trips = delivery_trip_list(user=admin_user, search="Tây Hồ")
+    assert search_trips.filter(id=trip1.id).exists()
+
+    # 5. Get by ID and code
+    found_trip = delivery_trip_get_by_id(trip_id=trip1.id, user=driver_user)
+    assert found_trip is not None
+    assert found_trip.id == trip1.id
+
+    found_code = delivery_trip_get_by_code(trip_code=trip1.trip_code)
+    assert found_code is not None
+    assert found_code.id == trip1.id
+
+    # 6. Eligible orders selector
+    new_order = order_create(
+        customer=customer_user,
+        sender_name="Sender 3",
+        sender_phone="0905",
+        sender_address="Hanoi",
+        receiver_name="Receiver 3",
+        receiver_phone="0906",
+        receiver_address="Tay Ho",
+    )
+    eligible = delivery_trip_get_eligible_orders(trip=trip1)
+    assert eligible.filter(id=new_order.id).exists()
+
+    # 7. Summary stats
+    stats = delivery_trip_get_summary_stats(user=admin_user)
+    assert stats["total_trips"] >= 1
+    assert stats["active_trips"] >= 1
+    assert stats["total_orders_dispatched"] >= 1
+    assert stats["total_cod_in_trips"] >= Decimal("300000.00")
+
 
 
 

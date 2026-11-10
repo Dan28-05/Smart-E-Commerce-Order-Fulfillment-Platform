@@ -8,9 +8,11 @@ from mangementlogistics.orders.constants import (
     OrderPaymentMethod,
     OrderStatus,
     ReturnStatus,
+    TripStatus,
 )
 from mangementlogistics.orders.models import (
     CODReconciliation,
+    DeliveryTrip,
     Order,
     OrderReturn,
     OrderTrackingHistory,
@@ -300,6 +302,149 @@ def order_return_get_summary_stats(
         "completed_returns": completed_returns,
         "total_refund_amount": total_refund_amount,
     }
+
+
+# ==============================================================================
+# Delivery Trip & Manifest Selectors
+# ==============================================================================
+
+def delivery_trip_list(
+    *,
+    user: User,
+    status: str | None = None,
+    search: str | None = None,
+) -> QuerySet[DeliveryTrip]:
+    """
+    Returns filtered queryset of delivery trips based on user role and query parameters.
+    - Admin sees all delivery trips.
+    - Driver sees trips assigned to them.
+    - Customer sees trips containing any of their orders.
+    """
+    qs = (
+        DeliveryTrip.objects.select_related("driver", "created_by")
+        .prefetch_related("trip_orders")
+        .all()
+    )
+
+    if not user.is_superuser and getattr(user, "role", None) != UserRole.ADMIN:
+        user_role = getattr(user, "role", None)
+        if user_role == UserRole.DRIVER:
+            qs = qs.filter(driver=user)
+        else:
+            qs = qs.filter(trip_orders__customer=user).distinct()
+
+    if status:
+        qs = qs.filter(status=status)
+
+    if search:
+        query = search.strip()
+        qs = qs.filter(
+            Q(trip_code__icontains=query)
+            | Q(route_name__icontains=query)
+            | Q(driver__email__icontains=query)
+            | Q(driver__name__icontains=query)
+            | Q(license_plate__icontains=query)
+            | Q(departure_hub__icontains=query)
+        )
+
+    return qs.order_by("-created_at")
+
+
+def delivery_trip_get_by_id(
+    *,
+    trip_id: int,
+    user: User,
+) -> DeliveryTrip | None:
+    """
+    Retrieves a delivery trip by ID with role-based access verification.
+    """
+    try:
+        trip = (
+            DeliveryTrip.objects.select_related("driver", "created_by")
+            .prefetch_related("trip_orders")
+            .get(id=trip_id)
+        )
+    except DeliveryTrip.DoesNotExist:
+        return None
+
+    if not user.is_superuser and getattr(user, "role", None) != UserRole.ADMIN:
+        user_role = getattr(user, "role", None)
+        if user_role == UserRole.DRIVER and trip.driver_id != user.id:
+            return None
+        if user_role != UserRole.DRIVER and not trip.trip_orders.filter(customer=user).exists():
+            return None
+
+    return trip
+
+
+def delivery_trip_get_by_code(
+    *,
+    trip_code: str,
+) -> DeliveryTrip | None:
+    """
+    Look up a delivery trip by unique trip code.
+    """
+    return (
+        DeliveryTrip.objects.select_related("driver", "created_by")
+        .prefetch_related("trip_orders")
+        .filter(trip_code__iexact=trip_code.strip())
+        .first()
+    )
+
+
+def delivery_trip_get_eligible_orders(
+    *,
+    trip: DeliveryTrip,
+    search: str | None = None,
+) -> QuerySet[Order]:
+    """
+    Returns unassigned or compatible orders available to be added to this trip.
+    """
+    qs = Order.objects.filter(
+        Q(delivery_trip__isnull=True) | Q(delivery_trip=trip),
+        status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PICKED_UP],
+    ).filter(Q(driver__isnull=True) | Q(driver=trip.driver))
+
+    if search:
+        query = search.strip()
+        qs = qs.filter(
+            Q(tracking_number__icontains=query)
+            | Q(receiver_name__icontains=query)
+            | Q(receiver_phone__icontains=query)
+            | Q(receiver_address__icontains=query)
+            | Q(sender_name__icontains=query)
+        )
+
+    return qs.order_by("-created_at")
+
+
+def delivery_trip_get_summary_stats(
+    *,
+    user: User,
+) -> dict:
+    """
+    Computes key performance indicators and metrics for delivery trips.
+    """
+    qs = delivery_trip_list(user=user)
+
+    total_trips = qs.count()
+    active_trips = qs.filter(status__in=[TripStatus.LOADING, TripStatus.IN_TRANSIT]).count()
+    completed_trips = qs.filter(status=TripStatus.COMPLETED).count()
+    planned_trips = qs.filter(status=TripStatus.PLANNED).count()
+
+    trip_orders = Order.objects.filter(delivery_trip__in=qs)
+    total_orders_dispatched = trip_orders.count()
+    total_cod_in_trips = trip_orders.aggregate(total=Sum("cod_amount"))["total"] or Decimal("0.00")
+
+    return {
+        "total_trips": total_trips,
+        "active_trips": active_trips,
+        "completed_trips": completed_trips,
+        "planned_trips": planned_trips,
+        "total_orders_dispatched": total_orders_dispatched,
+        "total_cod_in_trips": total_cod_in_trips,
+    }
+
 
 
 
