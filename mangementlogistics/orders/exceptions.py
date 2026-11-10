@@ -31,3 +31,9 @@ class OrderReturnError(Exception):
     pass
 
 
+class DeliveryTripError(Exception):
+    """Raised when a delivery trip operation fails or violates validation rules."""
+    pass
+
+
+

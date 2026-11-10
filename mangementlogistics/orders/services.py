@@ -17,9 +17,12 @@ from mangementlogistics.orders.constants import (
     ReturnFeePayer,
     ReturnReason,
     ReturnStatus,
+    TripStatus,
+    VehicleType,
 )
 from mangementlogistics.orders.exceptions import (
     CODReconciliationError,
+    DeliveryTripError,
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
@@ -27,6 +30,7 @@ from mangementlogistics.orders.exceptions import (
 )
 from mangementlogistics.orders.models import (
     CODReconciliation,
+    DeliveryTrip,
     Order,
     OrderReturn,
     OrderTrackingHistory,
@@ -781,6 +785,257 @@ def order_return_update_status(
         )
 
         return order_return
+
+
+# ==============================================================================
+# Delivery Trip & Dispatch Services
+# ==============================================================================
+
+def delivery_trip_create(
+    *,
+    driver: User,
+    actor: User,
+    route_name: str,
+    departure_hub: str = "Kho tổng điều phối",
+    vehicle_type: str = VehicleType.MOTORBIKE,
+    license_plate: str = "",
+    notes: str = "",
+) -> DeliveryTrip:
+    """
+    Creates a new delivery trip manifest and assigns a driver.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_driver = getattr(actor, "role", None) == UserRole.DRIVER
+    if not (is_admin or (is_driver and actor.id == driver.id)):
+        raise OrderPermissionDeniedError("Bạn không có quyền tạo chuyến xe giao hàng.")
+
+    driver_role = getattr(driver, "role", None)
+    if driver_role != UserRole.DRIVER and not driver.is_superuser:
+        raise DeliveryTripError("Người được phân công phải có vai trò Tài xế (Driver).")
+
+    if not route_name.strip():
+        raise DeliveryTripError("Tên lộ trình / tuyến giao không được để trống.")
+
+    return DeliveryTrip.objects.create(
+        driver=driver,
+        created_by=actor,
+        route_name=route_name.strip(),
+        departure_hub=departure_hub.strip() or "Kho tổng điều phối",
+        vehicle_type=vehicle_type,
+        license_plate=license_plate.strip().upper(),
+        status=TripStatus.PLANNED,
+        notes=notes.strip(),
+    )
+
+
+def delivery_trip_add_orders(
+    *,
+    trip: DeliveryTrip,
+    order_ids: list[int],
+    actor: User,
+) -> list[Order]:
+    """
+    Batch assigns orders to an active delivery trip manifest and assigns the driver.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_driver = getattr(actor, "role", None) == UserRole.DRIVER and actor.id == trip.driver_id
+    if not (is_admin or is_driver):
+        raise OrderPermissionDeniedError("Bạn không có quyền phân bổ đơn hàng vào chuyến xe này.")
+
+    if trip.status not in [TripStatus.PLANNED, TripStatus.LOADING]:
+        raise DeliveryTripError("Không thể thêm đơn hàng vào chuyến xe đã xuất bến hoặc đã kết thúc.")
+
+    if not order_ids:
+        raise DeliveryTripError("Danh sách đơn hàng cần thêm không được rỗng.")
+
+    orders = list(Order.objects.filter(id__in=order_ids))
+    if not orders:
+        raise DeliveryTripError("Không tìm thấy các đơn hàng hợp lệ để thêm vào chuyến.")
+
+    updated_orders = []
+    with transaction.atomic():
+        for order in orders:
+            if order.status in [OrderStatus.CANCELLED, OrderStatus.RETURNED]:
+                continue
+            if order.delivery_trip_id and order.delivery_trip_id != trip.id:
+                if order.delivery_trip.status in [TripStatus.IN_TRANSIT, TripStatus.LOADING]:
+                    raise DeliveryTripError(f"Đơn hàng #{order.tracking_number} đang thuộc chuyến xe {order.delivery_trip.trip_code}.")
+
+            order.delivery_trip = trip
+            order.driver = trip.driver
+            if order.status == OrderStatus.PENDING:
+                order.status = OrderStatus.CONFIRMED
+
+            order.save()
+            order_add_tracking_event(
+                order=order,
+                status=order.status,
+                location=trip.departure_hub,
+                note=f"Đã phân bổ vào chuyến xe {trip.trip_code} ({trip.route_name})",
+                actor=actor,
+            )
+            updated_orders.append(order)
+
+        if trip.status == TripStatus.PLANNED and updated_orders:
+            trip.status = TripStatus.LOADING
+            trip.save()
+
+    return updated_orders
+
+
+def delivery_trip_remove_order(
+    *,
+    trip: DeliveryTrip,
+    order_id: int,
+    actor: User,
+) -> Order:
+    """
+    Removes an order from a delivery trip manifest.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_driver = getattr(actor, "role", None) == UserRole.DRIVER and actor.id == trip.driver_id
+    if not (is_admin or is_driver):
+        raise OrderPermissionDeniedError("Bạn không có quyền gỡ đơn hàng khỏi chuyến xe này.")
+
+    if trip.status not in [TripStatus.PLANNED, TripStatus.LOADING]:
+        raise DeliveryTripError("Không thể gỡ đơn hàng khi chuyến xe đang chạy hoặc đã kết thúc.")
+
+    try:
+        order = Order.objects.get(id=order_id, delivery_trip=trip)
+    except Order.DoesNotExist:
+        raise DeliveryTripError("Đơn hàng không thuộc chuyến xe này.")
+
+    with transaction.atomic():
+        order.delivery_trip = None
+        order.save()
+
+        order_add_tracking_event(
+            order=order,
+            status=order.status,
+            location=trip.departure_hub,
+            note=f"Đã gỡ khỏi chuyến xe {trip.trip_code}",
+            actor=actor,
+        )
+
+        if trip.trip_orders.count() == 0 and trip.status == TripStatus.LOADING:
+            trip.status = TripStatus.PLANNED
+            trip.save()
+
+    return order
+
+
+def delivery_trip_dispatch(
+    *,
+    trip: DeliveryTrip,
+    actor: User,
+    notes: str = "",
+) -> DeliveryTrip:
+    """
+    Dispatches a delivery trip, automatically transitioning all included orders to IN_TRANSIT.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_driver = getattr(actor, "role", None) == UserRole.DRIVER and actor.id == trip.driver_id
+    if not (is_admin or is_driver):
+        raise OrderPermissionDeniedError("Bạn không có quyền xuất bến chuyến xe này.")
+
+    if trip.status not in [TripStatus.PLANNED, TripStatus.LOADING]:
+        raise DeliveryTripError("Chuyến xe chỉ có thể xuất bến khi đang ở trạng thái Lên kế hoạch hoặc Gom hàng.")
+
+    if trip.trip_orders.count() == 0:
+        raise DeliveryTripError("Chuyến xe chưa có đơn hàng nào, không thể xuất bến.")
+
+    with transaction.atomic():
+        trip.status = TripStatus.IN_TRANSIT
+        trip.departure_time = timezone.now()
+        if notes:
+            existing = f"{trip.notes}\n" if trip.notes else ""
+            trip.notes = f"{existing}[Xuất bến]: {notes}".strip()
+        trip.save()
+
+        # Batch update order statuses to IN_TRANSIT
+        eligible_orders = trip.trip_orders.filter(
+            status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PICKED_UP]
+        )
+        for order in eligible_orders:
+            order.status = OrderStatus.IN_TRANSIT
+            order.save()
+            order_add_tracking_event(
+                order=order,
+                status=OrderStatus.IN_TRANSIT,
+                location=trip.departure_hub,
+                note=f"Chuyến xe {trip.trip_code} đã xuất bến. Bưu phẩm đang trên đường giao.",
+                actor=actor,
+            )
+
+    return trip
+
+
+def delivery_trip_complete(
+    *,
+    trip: DeliveryTrip,
+    actor: User,
+    notes: str = "",
+) -> DeliveryTrip:
+    """
+    Marks a delivery trip as completed after driver finishes the run.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    is_driver = getattr(actor, "role", None) == UserRole.DRIVER and actor.id == trip.driver_id
+    if not (is_admin or is_driver):
+        raise OrderPermissionDeniedError("Bạn không có quyền hoàn thành chuyến xe này.")
+
+    if trip.status != TripStatus.IN_TRANSIT:
+        raise DeliveryTripError("Chỉ có thể kết thúc chuyến xe đang trong quá trình giao hàng (IN_TRANSIT).")
+
+    with transaction.atomic():
+        trip.status = TripStatus.COMPLETED
+        trip.completion_time = timezone.now()
+        if notes:
+            existing = f"{trip.notes}\n" if trip.notes else ""
+            trip.notes = f"{existing}[Hoàn thành]: {notes}".strip()
+        trip.save()
+
+    return trip
+
+
+def delivery_trip_cancel(
+    *,
+    trip: DeliveryTrip,
+    actor: User,
+    reason: str = "",
+) -> DeliveryTrip:
+    """
+    Cancels a delivery trip and detaches all uncompleted orders.
+    """
+    is_admin = actor.is_superuser or getattr(actor, "role", None) == UserRole.ADMIN
+    if not is_admin:
+        raise OrderPermissionDeniedError("Chỉ quản trị viên mới có quyền hủy chuyến xe.")
+
+    if trip.status == TripStatus.COMPLETED:
+        raise DeliveryTripError("Không thể hủy chuyến xe đã hoàn thành.")
+
+    with transaction.atomic():
+        trip.status = TripStatus.CANCELLED
+        if reason:
+            existing = f"{trip.notes}\n" if trip.notes else ""
+            trip.notes = f"{existing}[Hủy chuyến]: {reason}".strip()
+        trip.save()
+
+        # Detach orders that are not delivered yet
+        uncompleted_orders = trip.trip_orders.exclude(status=OrderStatus.DELIVERED)
+        for order in uncompleted_orders:
+            order.delivery_trip = None
+            order.save()
+            order_add_tracking_event(
+                order=order,
+                status=order.status,
+                location=trip.departure_hub,
+                note=f"Chuyến xe {trip.trip_code} đã bị hủy ({reason}). Đơn hàng chờ điều phối lại.",
+                actor=actor,
+            )
+
+    return trip
+
 
 
 

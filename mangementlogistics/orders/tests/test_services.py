@@ -16,6 +16,7 @@ from mangementlogistics.orders.constants import (
 )
 from mangementlogistics.orders.exceptions import (
     CODReconciliationError,
+    DeliveryTripError,
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
@@ -39,6 +40,12 @@ from mangementlogistics.orders.services import (
     cod_reconciliation_confirm,
     cod_reconciliation_generate,
     cod_reconciliation_mark_paid,
+    delivery_trip_add_orders,
+    delivery_trip_cancel,
+    delivery_trip_complete,
+    delivery_trip_create,
+    delivery_trip_dispatch,
+    delivery_trip_remove_order,
     order_add_checkpoint,
     order_cancel,
     order_create,
@@ -991,6 +998,175 @@ def test_delivery_trip_model_defaults(driver_user, admin_user, customer_user):
     assert trip.total_orders_count == 1
     assert trip.total_weight == Decimal("2.5")
     assert trip.total_cod_amount == Decimal("250000.00")
+
+
+def test_delivery_trip_create_and_validation(driver_user, admin_user, customer_user):
+    """
+    Test delivery trip creation validation rules, roles and permissions.
+    """
+    # 1. Customer cannot create delivery trip
+    with pytest.raises(OrderPermissionDeniedError):
+        delivery_trip_create(
+            driver=driver_user,
+            actor=customer_user,
+            route_name="Tuyến Ba Đình",
+        )
+
+    # 2. Assigning non-driver raises DeliveryTripError
+    with pytest.raises(DeliveryTripError):
+        delivery_trip_create(
+            driver=customer_user,
+            actor=admin_user,
+            route_name="Tuyến Ba Đình",
+        )
+
+    # 3. Empty route name raises DeliveryTripError
+    with pytest.raises(DeliveryTripError):
+        delivery_trip_create(
+            driver=driver_user,
+            actor=driver_user,
+            route_name="   ",
+        )
+
+    # 4. Driver successfully creates own trip
+    trip = delivery_trip_create(
+        driver=driver_user,
+        actor=driver_user,
+        route_name="Tuyến Đống Đa - Hoàn Kiếm",
+        departure_hub="Bưu cục Đống Đa",
+        vehicle_type=VehicleType.MOTORBIKE,
+        license_plate="29E1-12345",
+    )
+    assert trip.status == TripStatus.PLANNED
+    assert trip.driver == driver_user
+    assert trip.license_plate == "29E1-12345"
+
+
+def test_delivery_trip_add_remove_orders_flow(driver_user, admin_user, customer_user):
+    """
+    Test batch adding orders to a trip and removing orders.
+    """
+    trip = delivery_trip_create(
+        driver=driver_user,
+        actor=admin_user,
+        route_name="Tuyến Cầu Giấy",
+        departure_hub="Kho tổng Cầu Giấy",
+    )
+    assert trip.status == TripStatus.PLANNED
+
+    order1 = order_create(
+        customer=customer_user,
+        sender_name="Sender 1",
+        sender_phone="0901",
+        sender_address="Hanoi",
+        receiver_name="Receiver 1",
+        receiver_phone="0902",
+        receiver_address="Cau Giay",
+        weight=Decimal("1.0"),
+        cod_amount=Decimal("100000.00"),
+    )
+    order2 = order_create(
+        customer=customer_user,
+        sender_name="Sender 2",
+        sender_phone="0903",
+        sender_address="Hanoi",
+        receiver_name="Receiver 2",
+        receiver_phone="0904",
+        receiver_address="Cau Giay",
+        weight=Decimal("2.0"),
+        cod_amount=Decimal("200000.00"),
+    )
+
+    # 1. Add orders to trip
+    updated = delivery_trip_add_orders(
+        trip=trip,
+        order_ids=[order1.id, order2.id],
+        actor=driver_user,
+    )
+    assert len(updated) == 2
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.LOADING
+    assert trip.total_orders_count == 2
+    assert trip.total_cod_amount == Decimal("300000.00")
+
+    order1.refresh_from_db()
+    assert order1.delivery_trip_id == trip.id
+    assert order1.driver_id == driver_user.id
+    assert order1.status == OrderStatus.CONFIRMED
+
+    # 2. Remove order1 from trip
+    delivery_trip_remove_order(trip=trip, order_id=order1.id, actor=driver_user)
+    trip.refresh_from_db()
+    assert trip.total_orders_count == 1
+
+    order1.refresh_from_db()
+    assert order1.delivery_trip is None
+
+
+def test_delivery_trip_dispatch_complete_and_cancel_lifecycle(driver_user, admin_user, customer_user):
+    """
+    Test trip dispatching (batch status update to IN_TRANSIT), completion and cancellation.
+    """
+    trip = delivery_trip_create(
+        driver=driver_user,
+        actor=admin_user,
+        route_name="Tuyến Hai Bà Trưng",
+    )
+
+    # 1. Cannot dispatch empty trip
+    with pytest.raises(DeliveryTripError):
+        delivery_trip_dispatch(trip=trip, actor=driver_user)
+
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender",
+        sender_phone="0901",
+        sender_address="Hanoi",
+        receiver_name="Receiver",
+        receiver_phone="0902",
+        receiver_address="HBT",
+        weight=Decimal("1.5"),
+        cod_amount=Decimal("500000.00"),
+    )
+    delivery_trip_add_orders(trip=trip, order_ids=[order.id], actor=admin_user)
+
+    # 2. Dispatch trip
+    delivery_trip_dispatch(trip=trip, actor=driver_user, notes="Bắt đầu giao đơn")
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.IN_TRANSIT
+    assert trip.departure_time is not None
+
+    order.refresh_from_db()
+    assert order.status == OrderStatus.IN_TRANSIT
+
+    # 3. Complete trip
+    delivery_trip_complete(trip=trip, actor=driver_user, notes="Đã giao hết tuyến")
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.COMPLETED
+    assert trip.completion_time is not None
+
+    # 4. Cancel a planned trip with attached orders
+    trip2 = delivery_trip_create(
+        driver=driver_user,
+        actor=admin_user,
+        route_name="Tuyến Hoàng Mai",
+    )
+    order2 = order_create(
+        customer=customer_user,
+        sender_name="Sender 2",
+        sender_phone="0903",
+        sender_address="Hanoi",
+        receiver_name="Receiver 2",
+        receiver_phone="0904",
+        receiver_address="Hoang Mai",
+    )
+    delivery_trip_add_orders(trip=trip2, order_ids=[order2.id], actor=admin_user)
+    delivery_trip_cancel(trip=trip2, actor=admin_user, reason="Tài xế có việc bận đột xuất")
+    trip2.refresh_from_db()
+    assert trip2.status == TripStatus.CANCELLED
+    order2.refresh_from_db()
+    assert order2.delivery_trip is None
+
 
 
 
