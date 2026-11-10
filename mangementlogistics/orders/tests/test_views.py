@@ -12,6 +12,8 @@ from mangementlogistics.orders.constants import (
     ReturnFeePayer,
     ReturnReason,
     ReturnStatus,
+    TripStatus,
+    VehicleType,
 )
 from mangementlogistics.orders.services import (
     cod_reconciliation_generate,
@@ -399,6 +401,87 @@ def test_order_return_views_flow(client, customer_user, admin_user, driver_user)
     assert resp_print.status_code == 200
     assert "PHIẾU THU HỒI & CHUYỂN HOÀN" in resp_print.content.decode("utf-8")
     assert ret.return_code in resp_print.content.decode("utf-8")
+
+
+def test_delivery_trip_views_flow(client, customer_user, admin_user, driver_user):
+    """
+    Test viewing trip list, creating trip, adding orders, detail view, and dispatch action.
+    """
+    # 1. Unauthenticated redirects to login
+    list_url = reverse("orders:trip-list")
+    resp_unauth = client.get(list_url)
+    assert resp_unauth.status_code == 302
+    assert "/users/login/" in resp_unauth.url
+
+    # 2. Driver GET trip list
+    client.force_login(driver_user)
+    resp_list = client.get(list_url)
+    assert resp_list.status_code == 200
+    assert "Quản lý Chuyến xe Giao hàng" in resp_list.content.decode("utf-8")
+
+    # 3. GET create trip form
+    create_url = reverse("orders:trip-create")
+    resp_create_get = client.get(create_url)
+    assert resp_create_get.status_code == 200
+
+    # 4. POST create trip form
+    create_payload = {
+        "route_name": "Tuyến Hoàn Kiếm",
+        "departure_hub": "Kho tổng Bờ Hồ",
+        "vehicle_type": VehicleType.MOTORBIKE,
+        "license_plate": "29B1-99999",
+        "driver": driver_user.id,
+        "notes": "Chuyến phát nhanh",
+    }
+    resp_create_post = client.post(create_url, data=create_payload)
+    assert resp_create_post.status_code == 302
+
+    from mangementlogistics.orders.models import DeliveryTrip
+    trip = DeliveryTrip.objects.filter(driver=driver_user, route_name="Tuyến Hoàn Kiếm").first()
+    assert trip is not None
+    assert trip.status == TripStatus.PLANNED
+
+    # 5. Create an order and add it to trip
+    order = order_create(
+        customer=customer_user,
+        sender_name="Sender Shop",
+        sender_phone="0911",
+        sender_address="Hanoi",
+        receiver_name="Receiver Test",
+        receiver_phone="0922",
+        receiver_address="Hoan Kiem",
+        cod_amount=Decimal("150000.00"),
+    )
+    add_url = reverse("orders:trip-add-orders", kwargs={"trip_id": trip.id})
+    resp_add_get = client.get(add_url)
+    assert resp_add_get.status_code == 200
+
+    resp_add_post = client.post(add_url, data={"orders": [order.id]})
+    assert resp_add_post.status_code == 302
+
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.LOADING
+    assert trip.total_orders_count == 1
+
+    # 6. GET trip detail view
+    detail_url = reverse("orders:trip-detail", kwargs={"trip_id": trip.id})
+    resp_detail = client.get(detail_url)
+    assert resp_detail.status_code == 200
+    assert trip.trip_code in resp_detail.content.decode("utf-8")
+
+    # 7. Action: Dispatch trip
+    action_url = reverse("orders:trip-action", kwargs={"trip_id": trip.id})
+    resp_dispatch = client.post(
+        action_url,
+        data={
+            "action": "DISPATCH",
+            "notes": "Xe bắt đầu lăn bánh",
+        },
+    )
+    assert resp_dispatch.status_code == 302
+    trip.refresh_from_db()
+    assert trip.status == TripStatus.IN_TRANSIT
+
 
 
 

@@ -12,10 +12,13 @@ from mangementlogistics.orders.constants import (
     ReturnFeePayer,
     ReturnReason,
     ReturnStatus,
+    TripStatus,
     VIETNAM_PROVINCES,
+    VehicleType,
 )
 from mangementlogistics.orders.exceptions import (
     CODReconciliationError,
+    DeliveryTripError,
     DriverAssignmentError,
     InvalidOrderStatusError,
     OrderPermissionDeniedError,
@@ -24,6 +27,9 @@ from mangementlogistics.orders.exceptions import (
 from mangementlogistics.orders.forms import (
     CODReconciliationGenerateForm,
     CODReconciliationProcessForm,
+    DeliveryTripActionForm,
+    DeliveryTripAddOrdersForm,
+    DeliveryTripCreateForm,
     OrderCancelForm,
     OrderCheckpointForm,
     OrderCreateForm,
@@ -35,6 +41,7 @@ from mangementlogistics.orders.forms import (
 )
 from mangementlogistics.orders.models import (
     CODReconciliation,
+    DeliveryTrip,
     Order,
     OrderReturn,
 )
@@ -43,6 +50,10 @@ from mangementlogistics.orders.selectors import (
     cod_reconciliation_get_eligible_orders,
     cod_reconciliation_get_summary_stats,
     cod_reconciliation_list,
+    delivery_trip_get_by_id,
+    delivery_trip_get_eligible_orders,
+    delivery_trip_get_summary_stats,
+    delivery_trip_list,
     order_get_by_id,
     order_get_by_tracking_number,
     order_get_tracking_history,
@@ -56,6 +67,12 @@ from mangementlogistics.orders.services import (
     cod_reconciliation_confirm,
     cod_reconciliation_generate,
     cod_reconciliation_mark_paid,
+    delivery_trip_add_orders,
+    delivery_trip_cancel,
+    delivery_trip_complete,
+    delivery_trip_create,
+    delivery_trip_dispatch,
+    delivery_trip_remove_order,
     order_add_checkpoint,
     order_cancel,
     order_create,
@@ -902,6 +919,196 @@ def order_return_print_view(request, return_id: int):
             "order": order_return.order,
         },
     )
+
+
+# ==============================================================================
+# Delivery Trip & Route Dispatch Views
+# ==============================================================================
+
+@login_required
+def delivery_trip_list_view(request):
+    """
+    Renders the delivery trip runs list and KPI statistics scoped to user role.
+    """
+    status_filter = request.GET.get("status")
+    search_query = request.GET.get("q")
+
+    trips = delivery_trip_list(
+        user=request.user,
+        status=status_filter,
+        search=search_query,
+    )
+    summary_stats = delivery_trip_get_summary_stats(user=request.user)
+
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+    is_driver = getattr(request.user, "role", None) == UserRole.DRIVER
+
+    return render(
+        request,
+        "orders/trips/trip_list.html",
+        {
+            "trips": trips,
+            "selected_status": status_filter,
+            "search_query": search_query or "",
+            "summary_stats": summary_stats,
+            "is_admin": is_admin,
+            "is_driver": is_driver,
+            "status_choices": TripStatus.choices,
+        },
+    )
+
+
+@login_required
+def delivery_trip_detail_view(request, trip_id: int):
+    """
+    Renders details of a delivery trip manifest with its assigned parcels and operational controls.
+    """
+    trip = delivery_trip_get_by_id(trip_id=trip_id, user=request.user)
+    if not trip:
+        messages.error(request, "Không tìm thấy chuyến giao hàng hoặc bạn không có quyền truy cập.")
+        return redirect("orders:trip-list")
+
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+    is_driver = getattr(request.user, "role", None) == UserRole.DRIVER and trip.driver_id == request.user.id
+
+    action_form = DeliveryTripActionForm() if (is_admin or is_driver) else None
+
+    return render(
+        request,
+        "orders/trips/trip_detail.html",
+        {
+            "trip": trip,
+            "orders": trip.trip_orders.all(),
+            "is_admin": is_admin,
+            "is_driver": is_driver,
+            "action_form": action_form,
+        },
+    )
+
+
+@login_required
+def delivery_trip_create_view(request):
+    """
+    Allows dispatch supervisor or driver to initialize a new delivery run.
+    """
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+    is_driver = getattr(request.user, "role", None) == UserRole.DRIVER
+
+    if not (is_admin or is_driver):
+        messages.error(request, "Bạn không có quyền lập chuyến xe giao hàng.")
+        return redirect("orders:order-list")
+
+    if request.method == "POST":
+        form = DeliveryTripCreateForm(request.POST, user=request.user)
+        if form.is_valid():
+            try:
+                trip = delivery_trip_create(
+                    driver=form.cleaned_data["driver"],
+                    actor=request.user,
+                    route_name=form.cleaned_data["route_name"],
+                    departure_hub=form.cleaned_data["departure_hub"],
+                    vehicle_type=form.cleaned_data["vehicle_type"],
+                    license_plate=form.cleaned_data.get("license_plate", ""),
+                    notes=form.cleaned_data.get("notes", ""),
+                )
+                messages.success(request, f"Tạo chuyến xe {trip.trip_code} thành công! Hãy gom đơn hàng vào chuyến.")
+                return redirect("orders:trip-add-orders", trip_id=trip.id)
+            except (DeliveryTripError, OrderPermissionDeniedError) as exc:
+                messages.error(request, str(exc))
+    else:
+        form = DeliveryTripCreateForm(user=request.user)
+
+    return render(
+        request,
+        "orders/trips/trip_form.html",
+        {
+            "form": form,
+        },
+    )
+
+
+@login_required
+def delivery_trip_add_orders_view(request, trip_id: int):
+    """
+    Renders eligible parcels picker to batch add orders into a trip.
+    """
+    trip = delivery_trip_get_by_id(trip_id=trip_id, user=request.user)
+    if not trip:
+        messages.error(request, "Không tìm thấy chuyến xe giao hàng.")
+        return redirect("orders:trip-list")
+
+    is_admin = request.user.is_superuser or getattr(request.user, "role", None) == UserRole.ADMIN
+    is_driver = getattr(request.user, "role", None) == UserRole.DRIVER and trip.driver_id == request.user.id
+    if not (is_admin or is_driver):
+        messages.error(request, "Bạn không có quyền phân bổ đơn hàng vào chuyến xe này.")
+        return redirect("orders:trip-detail", trip_id=trip.id)
+
+    if request.method == "POST":
+        form = DeliveryTripAddOrdersForm(request.POST, trip=trip)
+        if form.is_valid():
+            selected_orders = form.cleaned_data["orders"]
+            try:
+                order_ids = [o.id for o in selected_orders]
+                updated = delivery_trip_add_orders(trip=trip, order_ids=order_ids, actor=request.user)
+                messages.success(request, f"Đã gom thành công {len(updated)} đơn hàng vào chuyến xe {trip.trip_code}!")
+                return redirect("orders:trip-detail", trip_id=trip.id)
+            except (DeliveryTripError, OrderPermissionDeniedError) as exc:
+                messages.error(request, str(exc))
+    else:
+        form = DeliveryTripAddOrdersForm(trip=trip)
+
+    return render(
+        request,
+        "orders/trips/trip_add_orders.html",
+        {
+            "trip": trip,
+            "form": form,
+        },
+    )
+
+
+@login_required
+def delivery_trip_action_view(request, trip_id: int):
+    """
+    Processes dispatch, completion, cancellation, and parcel removal actions for a trip.
+    """
+    if request.method != "POST":
+        return redirect("orders:trip-detail", trip_id=trip_id)
+
+    trip = delivery_trip_get_by_id(trip_id=trip_id, user=request.user)
+    if not trip:
+        messages.error(request, "Không tìm thấy chuyến giao hàng.")
+        return redirect("orders:trip-list")
+
+    form = DeliveryTripActionForm(request.POST)
+    if form.is_valid():
+        action = form.cleaned_data["action"]
+        notes = form.cleaned_data.get("notes", "")
+        order_id = form.cleaned_data.get("order_id")
+
+        try:
+            if action == "DISPATCH":
+                delivery_trip_dispatch(trip=trip, actor=request.user, notes=notes)
+                messages.success(request, f"Chuyến xe {trip.trip_code} đã xuất bến thành công! Tất cả bưu phẩm đã chuyển sang Đang vận chuyển.")
+            elif action == "COMPLETE":
+                delivery_trip_complete(trip=trip, actor=request.user, notes=notes)
+                messages.success(request, f"Chuyến xe {trip.trip_code} đã hoàn thành toàn bộ lộ trình!")
+            elif action == "CANCEL":
+                delivery_trip_cancel(trip=trip, actor=request.user, reason=notes)
+                messages.success(request, f"Đã hủy chuyến xe {trip.trip_code} thành công.")
+            elif action == "REMOVE_ORDER":
+                if not order_id:
+                    messages.error(request, "Không xác định được đơn hàng cần gỡ.")
+                else:
+                    delivery_trip_remove_order(trip=trip, order_id=order_id, actor=request.user)
+                    messages.success(request, "Đã gỡ đơn hàng khỏi chuyến xe.")
+        except (DeliveryTripError, OrderPermissionDeniedError) as exc:
+            messages.error(request, str(exc))
+    else:
+        messages.error(request, "Dữ liệu thao tác không hợp lệ.")
+
+    return redirect("orders:trip-detail", trip_id=trip.id)
+
 
 
 

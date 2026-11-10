@@ -7,9 +7,12 @@ from mangementlogistics.orders.constants import (
     ReturnFeePayer,
     ReturnReason,
     ReturnStatus,
+    TripStatus,
     VIETNAM_PROVINCES,
+    VehicleType,
 )
-from mangementlogistics.orders.models import Order, OrderReturn
+from mangementlogistics.orders.models import DeliveryTrip, Order, OrderReturn
+from mangementlogistics.orders.selectors import delivery_trip_get_eligible_orders
 from mangementlogistics.users.constants import UserRole
 from mangementlogistics.users.models import User
 
@@ -342,6 +345,96 @@ class OrderReturnActionForm(forms.Form):
         label="Ghi chú xử lý / Lý do",
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ghi chú tiến trình..."}),
     )
+
+
+class DeliveryTripCreateForm(forms.Form):
+    """
+    Form to initialize a new delivery trip manifest and assign a driver.
+    """
+    route_name = forms.CharField(
+        max_length=255,
+        label="Tên lộ trình / Tuyến giao",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ví dụ: Tuyến Cầu Giấy - Ba Đình - Tây Hồ"}),
+    )
+    departure_hub = forms.CharField(
+        max_length=255,
+        initial="Kho tổng điều phối",
+        label="Kho / Bưu cục xuất phát",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ví dụ: Bưu cục phát Cầu Giấy"}),
+    )
+    vehicle_type = forms.ChoiceField(
+        choices=VehicleType.choices,
+        initial=VehicleType.MOTORBIKE,
+        label="Phương tiện giao vận",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    license_plate = forms.CharField(
+        max_length=32,
+        required=False,
+        label="Biển số xe (BKS)",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ví dụ: 29C-123.45"}),
+    )
+    driver = forms.ModelChoiceField(
+        queryset=User.objects.filter(role=UserRole.DRIVER, is_active=True),
+        label="Tài xế phụ trách chuyến",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="-- Chọn tài xế điều phối --",
+    )
+    notes = forms.CharField(
+        required=False,
+        label="Ghi chú chuyến xe",
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Ghi chú phân luồng, thời gian hoặc lưu ý tuyến đường..."}),
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user and getattr(user, "role", None) == UserRole.DRIVER:
+            self.fields["driver"].initial = user
+            self.fields["driver"].queryset = User.objects.filter(id=user.id)
+
+
+class DeliveryTripAddOrdersForm(forms.Form):
+    """
+    Form to select and batch-add eligible orders to a delivery trip.
+    """
+    orders = forms.ModelMultipleChoiceField(
+        queryset=Order.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+        label="Danh sách đơn hàng sẵn sàng giao",
+        required=True,
+    )
+
+    def __init__(self, *args, trip=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if trip:
+            self.fields["orders"].queryset = delivery_trip_get_eligible_orders(trip=trip)
+
+
+class DeliveryTripActionForm(forms.Form):
+    """
+    Form to trigger trip lifecycle status transitions.
+    """
+    ACTION_CHOICES = [
+        ("DISPATCH", "Xuất bến giao hàng (IN_TRANSIT)"),
+        ("COMPLETE", "Hoàn thành chuyến giao (COMPLETED)"),
+        ("CANCEL", "Hủy chuyến xe (CANCELLED)"),
+        ("REMOVE_ORDER", "Gỡ đơn khỏi chuyến"),
+    ]
+    action = forms.ChoiceField(
+        choices=ACTION_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="Thao tác",
+    )
+    order_id = forms.IntegerField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Ghi chú xuất bến, hoàn thành hoặc lý do hủy..."}),
+        label="Ghi chú",
+    )
+
 
 
 
